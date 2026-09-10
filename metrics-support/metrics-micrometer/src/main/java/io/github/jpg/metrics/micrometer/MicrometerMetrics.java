@@ -5,8 +5,8 @@ import io.github.jpg.metrics.Metrics;
 import io.github.jpg.metrics.MetricsScrape;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Timer;
-import io.micrometer.prometheus.PrometheusConfig;
-import io.micrometer.prometheus.PrometheusMeterRegistry;
+import io.micrometer.prometheusmetrics.PrometheusConfig;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 
 import java.time.Duration;
 import java.util.Optional;
