@@ -1,0 +1,119 @@
+{
+  "uid": "release-trend",
+  "title": "Release Trend — Load Test",
+  "tags": ["jpg", "load-test"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "",
+  "time": { "from": "now-30d", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "action",
+        "label": "Action",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": { "query": "label_values(run:portal_user_action_seconds:p95, action)", "refId": "A" },
+        "includeAll": false,
+        "multi": false,
+        "current": { "text": "login", "value": "login" },
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "One point per load-test run, over time. Each run's derived series exists only for the run window, so runs show as short marks — a regression or improvement across releases stands out. Backed by the `run:portal_user_action_seconds:*` recording rules."
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "p95 of $action across runs",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 3 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "drawStyle": "points", "pointSize": 8, "lineWidth": 1, "spanNulls": false, "showPoints": "always" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max by (release) (run:portal_user_action_seconds:p95{action=\"$action\"})",
+          "legendFormat": "{{release}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Peak p95 per release — $action",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 12 },
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "release" }, "properties": [ { "id": "unit", "value": "string" } ] }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "renameByName": { "Value": "p95 (s)" }
+          }
+        },
+        { "id": "sortBy", "options": { "fields": "", "sort": [ { "field": "release" } ] } }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max by (release) (max_over_time(run:portal_user_action_seconds:p95{action=\"$action\"}[$__range]))"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Peak error ratio per release — $action",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 12 },
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit" },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "release" }, "properties": [ { "id": "unit", "value": "string" } ] }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": { "excludeByName": { "Time": true }, "renameByName": { "Value": "error ratio" } }
+        },
+        { "id": "sortBy", "options": { "fields": "", "sort": [ { "field": "release" } ] } }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max by (release) (max_over_time(run:portal_user_action:error_ratio{action=\"$action\"}[$__range]))"
+        }
+      ]
+    }
+  ]
+}

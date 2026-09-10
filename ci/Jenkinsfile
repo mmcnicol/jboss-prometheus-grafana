@@ -1,0 +1,89 @@
+// One labelled load-test run, orchestrated. Designed to run on an agent that is
+// the demo VM (or has SSH to it) with JDK 17, Maven, Docker, k6 and Chromium —
+// i.e. the box that `infra/gcp/bootstrap.sh` provisions.
+//
+// Spike F. The heavy lifting is in ./load/run-loadtest.sh; this wraps it with
+// parameters, a Grafana panel snapshot, and artifact archiving.
+
+pipeline {
+  agent any
+
+  parameters {
+    string(name: 'RELEASE',  defaultValue: '',            description: 'Release label. Blank = git describe, normalised (D3).')
+    choice(name: 'DRIVER',   choices: ['selenium', 'k6-browser'], description: 'Scenario driver')
+    string(name: 'VUS',      defaultValue: '3',            description: 'Virtual users')
+    string(name: 'DURATION', defaultValue: '120',          description: 'Run duration (seconds)')
+    string(name: 'GRAFANA',  defaultValue: 'http://localhost:3000', description: 'Grafana base URL')
+    string(name: 'DASHBOARD_UID', defaultValue: 'user-actions-loadtest', description: 'Panel snapshot source')
+  }
+
+  options {
+    timestamps()
+    disableConcurrentBuilds()
+    timeout(time: 30, unit: 'MINUTES')
+  }
+
+  environment {
+    JOB_NAME_SAFE = "${env.JOB_NAME.replaceAll('[^A-Za-z0-9_-]', '-')}"
+  }
+
+  stages {
+    stage('Checkout') {
+      steps { checkout scm }
+    }
+
+    stage('Resolve release') {
+      steps {
+        script {
+          env.RELEASE = params.RELEASE?.trim() ?:
+            sh(returnStdout: true, script: "git describe --tags --always | sed -E 's/^v//; s/^version //; s/-[0-9]+-g[0-9a-f]+\$//'").trim()
+          echo "release = ${env.RELEASE}"
+        }
+      }
+    }
+
+    stage('Build & deploy') {
+      steps {
+        sh './scripts/on-vm-build-deploy.sh'
+      }
+    }
+
+    stage('Load test') {
+      steps {
+        sh """
+          JOB_NAME='${env.JOB_NAME_SAFE}-${env.BUILD_NUMBER}' \
+          ./load/run-loadtest.sh \
+            --driver ${params.DRIVER} \
+            --vus ${params.VUS} \
+            --duration ${params.DURATION} \
+            --release ${env.RELEASE}
+        """
+      }
+    }
+
+    stage('Snapshot dashboard') {
+      steps {
+        // Render the p95 panel to a PNG via Grafana's image renderer; always
+        // grab the dashboard JSON export as a fallback artifact.
+        sh """
+          set +e
+          curl -sS -u admin:admin \
+            '${params.GRAFANA}/render/d-solo/${params.DASHBOARD_UID}?panelId=3&width=1200&height=500&from=now-30m&to=now' \
+            -o loadtest-panel.png
+          test -s loadtest-panel.png || rm -f loadtest-panel.png
+          curl -sS -u admin:admin '${params.GRAFANA}/api/dashboards/uid/${params.DASHBOARD_UID}' -o dashboard-export.json
+          true
+        """
+      }
+    }
+  }
+
+  post {
+    always {
+      archiveArtifacts artifacts: 'loadtest-panel.png, dashboard-export.json', allowEmptyArchive: true, fingerprint: true
+    }
+    failure {
+      echo 'Load-test run failed — check the stage log and `observability/stack.sh logs`.'
+    }
+  }
+}

@@ -1,0 +1,44 @@
+# Recording rules for load-test analysis (decision D4: recording rules only, no
+# separate results store).
+#
+# Each rule aggregates by (action, run_id, release, test_type). A run's raw
+# series only exist while the OTel Collector is pushing during that run, so these
+# derived series are likewise populated only for the run window — which is what
+# makes the "one point per run" release-trend panel work over a wide time range.
+
+groups:
+  - name: loadtest-user-actions
+    interval: 15s
+    rules:
+      - record: run:portal_user_action_seconds:p50
+        expr: |
+          histogram_quantile(0.50,
+            sum by (le, action, run_id, release, test_type) (
+              rate(portal_user_action_seconds_bucket[2m])))
+
+      - record: run:portal_user_action_seconds:p95
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le, action, run_id, release, test_type) (
+              rate(portal_user_action_seconds_bucket[2m])))
+
+      - record: run:portal_user_action_seconds:p99
+        expr: |
+          histogram_quantile(0.99,
+            sum by (le, action, run_id, release, test_type) (
+              rate(portal_user_action_seconds_bucket[2m])))
+
+      - record: run:portal_user_action:rate
+        expr: |
+          sum by (action, run_id, release, test_type) (
+            rate(portal_user_action_seconds_count[2m]))
+
+      - record: run:portal_user_action:error_ratio
+        expr: |
+          sum by (action, run_id, release, test_type) (
+            rate(portal_user_action_seconds_count{outcome="failure"}[2m]))
+          /
+          clamp_min(
+            sum by (action, run_id, release, test_type) (
+              rate(portal_user_action_seconds_count[2m])),
+            1e-9)

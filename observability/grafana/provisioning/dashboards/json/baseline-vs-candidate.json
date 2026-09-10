@@ -1,0 +1,181 @@
+{
+  "uid": "baseline-vs-candidate",
+  "title": "Baseline vs Candidate — Load Test",
+  "tags": ["jpg", "load-test"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "",
+  "time": { "from": "now-30d", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "baseline",
+        "label": "Baseline run",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": { "query": "label_values(portal_user_action_seconds_count, run_id)", "refId": "A" },
+        "sort": 5,
+        "refresh": 2,
+        "includeAll": false,
+        "current": {}
+      },
+      {
+        "name": "candidate",
+        "label": "Candidate run",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": { "query": "label_values(portal_user_action_seconds_count, run_id)", "refId": "A" },
+        "sort": 5,
+        "refresh": 2,
+        "includeAll": false,
+        "current": {}
+      },
+      {
+        "name": "action",
+        "label": "Action",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": { "query": "label_values(portal_user_action_seconds_count, action)", "refId": "A" },
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "current": { "text": "All", "value": "$__all" },
+        "refresh": 2
+      },
+      {
+        "name": "shift",
+        "label": "Overlay shift (baseline offset)",
+        "type": "textbox",
+        "query": "1h",
+        "current": { "text": "1h", "value": "1h" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "Compare two runs. The **bar chart** and **delta table** are alignment-free (whole-run aggregates). The **overlay** plots both runs' p95 over time; set **Overlay shift** ≈ (candidate start − baseline start) so the baseline slides onto the candidate window (PromQL `offset`). Spike D notes the alternatives."
+      }
+    },
+    {
+      "id": 2,
+      "type": "barchart",
+      "title": "p95 by action — baseline vs candidate",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 3 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "options": { "xField": "action", "orientation": "horizontal", "showValue": "auto", "groupWidth": 0.7, "barWidth": 0.9 },
+      "transformations": [
+        { "id": "joinByField", "options": { "byField": "action", "mode": "outer" } },
+        { "id": "organize", "options": { "excludeByName": { "Time 1": true, "Time 2": true }, "renameByName": { "Value #baseline": "baseline", "Value #candidate": "candidate" } } }
+      ],
+      "targets": [
+        {
+          "refId": "baseline",
+          "format": "table",
+          "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max by (action) (max_over_time(run:portal_user_action_seconds:p95{run_id=\"$baseline\", action=~\"$action\"}[$__range]))"
+        },
+        {
+          "refId": "candidate",
+          "format": "table",
+          "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max by (action) (max_over_time(run:portal_user_action_seconds:p95{run_id=\"$candidate\", action=~\"$action\"}[$__range]))"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Delta table (candidate − baseline)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 3 },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byRegexp", "options": "p95.*" }, "properties": [ { "id": "unit", "value": "s" } ] },
+          { "matcher": { "id": "byName", "options": "Δ p95 %" }, "properties": [ { "id": "unit", "value": "percent" }, { "id": "custom.cellOptions", "value": { "type": "color-background" } }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 15 } ] } } ] }
+        ]
+      },
+      "transformations": [
+        { "id": "joinByField", "options": { "byField": "action", "mode": "outer" } },
+        { "id": "organize", "options": { "excludeByName": { "Time 1": true, "Time 2": true }, "renameByName": { "Value #b": "p95 baseline", "Value #c": "p95 candidate" } } },
+        { "id": "calculateField", "options": { "alias": "Δ p95", "mode": "binary", "binary": { "left": "p95 candidate", "operator": "-", "right": "p95 baseline" }, "replaceFields": false } },
+        { "id": "calculateField", "options": { "alias": "Δ p95 %", "mode": "binary", "binary": { "left": "Δ p95", "operator": "/", "right": "p95 baseline" }, "replaceFields": false } }
+      ],
+      "targets": [
+        {
+          "refId": "b",
+          "format": "table",
+          "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max by (action) (max_over_time(run:portal_user_action_seconds:p95{run_id=\"$baseline\", action=~\"$action\"}[$__range]))"
+        },
+        {
+          "refId": "c",
+          "format": "table",
+          "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max by (action) (max_over_time(run:portal_user_action_seconds:p95{run_id=\"$candidate\", action=~\"$action\"}[$__range]))"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "p95 over time — candidate (solid) vs baseline (offset $shift)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 12 },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 5, "spanNulls": false } },
+        "overrides": [
+          { "matcher": { "id": "byRegexp", "options": "baseline.*" }, "properties": [ { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [ 8, 6 ] } } ] }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "cand",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max by (action) (run:portal_user_action_seconds:p95{run_id=\"$candidate\", action=~\"$action\"})",
+          "legendFormat": "candidate {{action}}"
+        },
+        {
+          "refId": "base",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max by (action) (run:portal_user_action_seconds:p95{run_id=\"$baseline\", action=~\"$action\"} offset -$shift)",
+          "legendFormat": "baseline {{action}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "client (k6 browser) vs server p95 — candidate",
+      "description": "Populated only when the candidate run used the k6-browser driver. client_action_seconds is k6's client-observed time; the server metric is the PhaseListener's.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 22 },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineWidth": 2 } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "server",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max by (action) (run:portal_user_action_seconds:p95{run_id=\"$candidate\", action=~\"$action\"})",
+          "legendFormat": "server {{action}}"
+        },
+        {
+          "refId": "client",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "k6_client_action_seconds_p95{run_id=\"$candidate\", action=~\"$action\"}",
+          "legendFormat": "client {{action}}"
+        }
+      ]
+    }
+  ]
+}

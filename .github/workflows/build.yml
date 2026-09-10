@@ -1,0 +1,39 @@
+name: build
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+jobs:
+  maven:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Build + unit tests (default backend = micrometer)
+        run: mvn -B -ntp verify
+      - name: Compile with the Prometheus-client backend
+        run: mvn -B -ntp -Dbackend=prometheus-client -pl demo-app/portal-web -am package -DskipTests
+
+  dashboards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate dashboard + provisioning JSON/YAML
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq jq yamllint
+          fail=0
+          for f in observability/grafana/provisioning/dashboards/json/*.json; do
+            echo "jq check: $f"
+            jq empty "$f" || fail=1
+          done
+          for f in $(git ls-files 'observability/**/*.yml' 'observability/**/*.yaml'); do
+            echo "yaml check: $f"
+            yamllint -d '{extends: relaxed, rules: {line-length: disable}}' "$f" || fail=1
+          done
+          exit $fail
