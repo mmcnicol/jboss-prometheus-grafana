@@ -13,7 +13,9 @@ JMX_JAR="$JMX_DIR/jmx_prometheus_javaagent.jar"
 JMX_CONF="$JMX_DIR/config.yaml"
 PORT=9404
 UNIT=/etc/systemd/system/wildfly.service
-AGENT_OPT="-javaagent:${JMX_JAR}=${PORT}:${JMX_CONF}"
+# WildFly isolates classloading; the agent's packages must be delegated to the
+# system classloader or subsystem boot fails (WFLYCTL0013 / WFLYSRV0056).
+AGENT_OPT="-javaagent:${JMX_JAR}=${PORT}:${JMX_CONF} -Djboss.modules.system.pkgs=org.jboss.byteman,io.prometheus.jmx,jdk.nashorn.api"
 
 case "${1:-}" in
   on)
@@ -30,7 +32,7 @@ case "${1:-}" in
     fi
     ;;
   off)
-    sudo sed -i -E "s# -javaagent:[^ \"]*jmx_prometheus_javaagent\\.jar=[0-9]+:[^ \"]*##" "$UNIT"
+    sudo sed -i -E "s# -javaagent:[^ \"]*jmx_prometheus_javaagent\\.jar=[0-9]+:[^ \"]*##; s# -Djboss\\.modules\\.system\\.pkgs=[^ \"]*##" "$UNIT"
     ;;
   *)
     echo "usage: $0 on|off" >&2; exit 2 ;;
