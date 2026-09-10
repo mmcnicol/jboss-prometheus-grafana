@@ -136,6 +136,13 @@ Collector's JMX receiver?
 - Compare each for: coverage (heap/GC/threads/datasource pool/undertow),
   amount of custom Java (ideally zero), how it's toggled per run, and how it
   rides the same Collector pipeline from Spike C.
+- **Cross-platform check**: whatever is chosen must work when the app server runs
+  on **Windows** (Test/UAT/Prod are Windows). A `-javaagent` set in
+  `standalone.conf.bat` / `JAVA_OPTS`, or a remote JMX connection from the
+  Collector, both satisfy this; a Linux-only exporter or shell wrapper does not.
+- Host-level metrics of the target machine are explicitly **not** in this spike —
+  no `node_exporter` on those servers, and `windows_exporter` is a separate
+  decision for the app-management team, not this solution.
 - If custom MBean-reading Java is unavoidable, define the interface boundary and
   the exact JaCoCo/Sonar exclusion, with justification.
 

@@ -8,10 +8,15 @@ Date: 2026-09-10
 A Jakarta EE 8 web application is hosted on JBoss EAP 7.4. The UI layer uses JSF
 and PrimeFaces 13.0.0 with a commercial layout theme. The system comprises one
 main application WAR and roughly 30 microservice WARs. Delivery uses Git
-(`main`, `develop`, release branches) and Maven, with Jenkins for CI. Prometheus,
-Grafana, and `node_exporter` are already in use on development infrastructure for
-host CPU/memory dashboards. A separate application-management team uses a
-commercial APM product on Test/UAT/Production.
+(`main`, `develop`, release branches) and Maven, with Jenkins for CI.
+
+Environment split matters here: the **dev/CI hosts** (Jenkins and agents,
+Selenium hub, Nexus, Docker registry) run **RHEL**, and Prometheus, Grafana, and
+`node_exporter` already run there for host CPU/memory dashboards. **Test, UAT, and
+Production run on Windows servers**, have **no** `node_exporter`, and are covered
+by a separate application-management team's commercial APM product. The load test
+that this work targets runs against a **Windows-hosted** deployment, so the
+solution must not depend on Linux-only host tooling.
 
 Earlier work (a spike) explored getting application metrics into Prometheus for
 **load testing, not production monitoring**. That spike tried Micrometer and then
@@ -169,6 +174,11 @@ microservices standing in for the real system.
 - **NFR6 — Compatibility**: builds and runs on WildFly 26.1 (Jakarta EE 8,
   `javax.*`, MicroProfile 4.x); documented deltas for EAP 7.4 and a documented
   path to EAP 8 / EE 10 (`jakarta.*`).
+- **NFR6a — OS-agnostic**: every part of the collection path (instrumentation
+  module, metrics endpoint, OTel Collector, k6, and any phase-2 JBoss/JVM
+  exporter) must run unchanged whether the app server is on RHEL or **Windows**,
+  since Test/UAT/Production are Windows. No dependency on Linux-only exporters,
+  shell scripts, or `node_exporter` for the target host.
 - **NFR7 — Security**: the metrics endpoint is not exposed publicly; bound to a
   management interface / internal network / behind auth on the VM.
 

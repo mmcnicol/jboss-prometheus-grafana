@@ -62,8 +62,24 @@ brought up and torn down by scripts in the repo.
                           └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **node_exporter** is *not* required for the core solution (it already exists in
-  the real world for host metrics); optional on the VM for context.
+- **node_exporter** is *not* part of this solution. In the real world it runs
+  only on the **RHEL dev/CI hosts** (Jenkins, Selenium hub, Nexus, Docker
+  registry) for host CPU/memory dashboards — **not** on Test/UAT/Production. Those
+  environments are **Windows servers**; the load test that matters runs against a
+  Windows-hosted app. Implications:
+  - Host-level metrics for a load-test target are **out of scope** here. If ever
+    wanted for a Windows target, that is `windows_exporter`, not `node_exporter` —
+    noted, not built.
+  - The instrumentation module and the k6/collector pipeline are **OS-agnostic**
+    (pure JVM + HTTP), so they behave the same whether the app server is RHEL or
+    Windows.
+  - The **phase-2 JBoss/JVM route must be cross-platform**: a `-javaagent`
+    (`jmx_exporter`) or the Collector's JMX receiver both work on Windows;
+    anything relying on a Linux-only exporter or shell tooling does not. This
+    reinforces the "agent, no custom Java" choice from Spike E.
+  - On the demo **VM** (Debian) an optional `node_exporter` container may be added
+    purely to make the compose stack feel complete for the showcase; it has no
+    bearing on the real deployment.
 - The observability stack (Prometheus, Grafana, Collector) runs via
   **docker compose on the VM** (the VM can run Docker; your laptop cannot).
   WildFly runs natively on the VM (simpler to attach a JMX agent later, closer to
