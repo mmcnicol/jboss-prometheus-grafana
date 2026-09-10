@@ -1,6 +1,6 @@
 # Recommended Technical Solution
 
-Status: **Awaiting your review** — do not implement until approved.
+Status: **Approved 2026-09-10** — decisions locked in §9; implementation starts at Phase 0.
 Date: 2026-09-10
 
 ---
@@ -255,10 +255,10 @@ metric is the source of truth in every case. Repo ships:
 - `infra/gcp/up.sh`: `gcloud compute instances create` — `e2-standard-4`,
   Debian 12, 30 GB disk, a firewall rule limited to **your current public IP**
   for Grafana (3000) and SSH; everything else stays on `localhost`/VPC.
-- `bootstrap.sh` on the VM: install Docker + Compose plugin, a JDK 11/17, k6,
-  a headless Chrome/Chromedriver for the Selenium and k6-browser drivers,
-  download WildFly 26.1, deploy the three WARs, `docker compose up -d` the
-  observability stack.
+- `bootstrap.sh` on the VM: install Docker + Compose plugin, **JDK 17**, Maven,
+  k6, a headless Chrome + matching Chromedriver for the Selenium and k6-browser
+  drivers, download WildFly 26.1, deploy the three WARs, `docker compose up -d`
+  the observability stack.
 - `infra/gcp/down.sh`: delete the instance and firewall rule. Stopped/deleted
   between sessions → ~zero cost. Estimate: ~US$0.13/hr while running.
 - Project `mmcnicol-geneology` (already in your gcloud config) unless you say
@@ -271,8 +271,12 @@ metric is the source of truth in every case. Repo ships:
   `Run scenario (driver = param, loops the steps)` → `Settle 30s` →
   `Stop collector` → `Write recording rule eval` → `Grafana snapshot` →
   `Archive PNG/snapshot URL`.
-- Parameters: `RELEASE` (default `git describe --tags --always`), `TEST_TYPE`,
-  `DURATION`, `VUS`.
+- Parameters: `RELEASE` (default: `git describe --tags --always` **normalised**
+  to a bare version — strip a leading `v`, a `version ` prefix, and any trailing
+  `-<n>-g<sha>` from `git describe`; e.g. `version 1.0.0` → `1.0.0`), `TEST_TYPE`,
+  `DURATION`, `VUS`, `DRIVER` (`selenium` | `k6-browser` | `k6-http`).
+  The normalisation rule is a single documented function; adjust it once the
+  workplace tag format is confirmed.
 - **GitHub Actions**: `mvn verify` (builds module + WARs, runs unit tests) +
   a dashboard-JSON lint. No load run in Actions.
 
@@ -292,7 +296,7 @@ Phase 0–1 is the "keep it simple" milestone to demo before going wider.
 
 ---
 
-## 7. "Try more than one solution?" — yes, in two bounded places
+## 7. "Try more than one solution?" — yes, in three bounded places
 
 1. **Instrumentation library** (Micrometer vs Prometheus client) — both built,
    compared, one chosen. Low cost because the facade isolates them.
@@ -324,30 +328,42 @@ spends effort without informing a real decision.
 | PrimeFaces polling / auto-refresh inflates or pollutes action metrics | Poll component ids configured and filtered (dropped or bucketed as a separate `poll` action); verified in Spike B. |
 | Recorded k6 HTTP script for the JSF app is large and brittle | Not the primary UI path; kept only as a cautionary example. UI load uses Selenium/Java or k6 browser (step-based). |
 | Collector config per run is fiddly | Env-var-driven `resource` processor, not templated YAML, if Spike C confirms it works. |
-| Commercial PrimeFaces theme not redistributable | Free built-in theme + a one-line documented swap point (OQ1). |
+| Commercial PrimeFaces theme not redistributable | Free bundled **Saga** theme + `primefaces.THEME` swap point; layout template kept separate (D1). |
 | Cloud cost / left-running VM | `down.sh` deletes it; document the check; optional budget alert. |
 | Scope creep into JVM/MBean land (repeat of last time) | Phasing makes it explicit and last; phase-2 route uses an agent with **no custom Java to unit-test**. |
 
 ---
 
-## 9. What I need from you (review)
+## 9. Decisions (locked 2026-09-10)
 
-Please confirm or correct:
+All review points are resolved. Mirrored in `01-requirements.md` §8.
 
-1. **Phasing** — is Phase 0–1 the right "simple first" cut, or do you want
-   services (Phase 3) folded into the first milestone?
-2. **Default JDK on the VM** — 11 or 17 for WildFly 26.1? (Real env is likely
-   JDK 11 on EAP 7.4 — I'll default to 11 unless you say otherwise.)
-2a. **Primary UI driver** — Selenium/Java (my pick, matches workplace norms) with
-   k6 browser as the alternative; or would you rather k6 browser be primary?
-3. **`release` label source** — `git describe --tags --always` OK, or a supplied
-   build number? (OQ3)
-4. **Results store** (OQ4) — Prometheus recording rules only, or do you want a
-   small durable results service like your earlier Go "test store"? I lean
-   recording-rules-only for now.
-5. **Free PrimeFaces theme** choice (OQ1) — any preference, or my pick?
-6. **EAP 7.4 parity check on the VM** (OQ2) — in scope now, or Spike G stays
-   desk-only?
+| # | Decision |
+|---|---|
+| **D1** | Demo UI theme: free bundled PrimeFaces **Saga** (light), with a simple layout template. `primefaces.THEME` in `web.xml` is the documented swap point for a commercial theme; the layout template is separate so it can be swapped independently. |
+| **D2** | **No** EAP 7.4 parity check on the VM this phase. Spike G is a desk review only. |
+| **D3** | `release` label = `git describe --tags --always`, **normalised** to a bare version (strip leading `v` / `version ` prefix and any trailing `-<n>-g<sha>`; `version 1.0.0` → `1.0.0`). Workplace tag format (Maven release plugin) to be confirmed; normalisation is one documented function and a `RELEASE` param overrides. |
+| **D4** | **Recording-rules-only** for trend history. No separate results service. |
+| **D5** | Target **JDK 17** (workplace runs EAP 7.4 on JDK 17; WildFly 26.1 supports it). |
+| **D6** | Primary UI driver: **Selenium (Java + TestNG)**. k6 browser = alternative + client-side cross-check. k6 HTTP = services. |
+| **D7** | GCP: project `mmcnicol-geneology`, `e2-standard-4`, Debian, Grafana port firewalled to the engineer's current public IP only; VM deleted between sessions. |
+| **D8** | Phasing per §6: **Phase 0–1 is the agreed first milestone**; services (Phase 3) and JVM metrics (Phase 4) follow. |
+
+### Next steps (Phase 0)
+
+1. `infra/gcp/up.sh` + `bootstrap.sh` — bring up the VM, install JDK 17 / Maven /
+   k6 / headless Chrome / WildFly 26.1, stand up Prometheus + Grafana +
+   (run-scoped) OTel Collector via docker compose.
+2. Repo skeleton: Maven reactor, `metrics-support/metrics-api` + no-op backend,
+   `demo-app/portal-web` (Saga theme: login → clinical-form stand-in → list).
+3. `load/scenarios/happy-path.md` + a Selenium/Java driver that loops
+   login → open-form → save-form.
+4. Confirm end-to-end: app deploys, scenario runs, Grafana reachable.
+
+Then Phase 1 (Spikes A/B/C) wires the real instrumentation, the toggle, run
+labelling, and Dashboard 1.
+
+I'll begin Phase 0 and report back when the VM + skeleton are up.
 7. **GCP** — OK to use project `mmcnicol-geneology` and an `e2-standard-4`, with
    the Grafana port firewalled to your current IP only?
 8. Anything in `01-requirements.md` to add, cut, or reword before I treat it as

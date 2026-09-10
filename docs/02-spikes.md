@@ -120,10 +120,11 @@ reproducibly from checked-in JSON?
   against that;
   (c) two dashboard **template variables** (`$baseline`, `$candidate`) over the
   `run_id`/`release` label with `{run_id=~"$baseline|$candidate"}`.
-- Trend: `max_over_time(login_seconds{quantile="0.95"}[$run_window])` per run,
-  or a Prometheus **recording rule** that writes one summary series per run;
-  x-axis = release. Consider a small results store (OQ4) if recording rules get
-  awkward.
+- Trend: a Prometheus **recording rule** that writes one summary series per run
+  (`max_over_time(login_seconds{quantile="0.95"}[$run_window])`); x-axis =
+  release. **Recording-rules-only is the agreed approach (D4)** — if they prove
+  awkward, note it as a finding rather than reaching for a separate results
+  service.
 - Delta table: `p95(candidate) - p95(baseline)` per action.
 
 **Time-box.** 2–3 days.
@@ -175,35 +176,37 @@ build — and how much can be shared with GitHub Actions?
 
 **Do.**
 - Pipeline stages: resolve `release`/`run_id` → start collector with run env →
-  k6 run → drain/settle → stop collector → Grafana snapshot API → archive
-  artifact.
-- Decide `run_id` scheme (`${JOB_NAME}-${BUILD_NUMBER}` + timestamp) and
-  `release` scheme (`git describe --tags --always` or branch).
+  run scenario (driver = `DRIVER` param) → drain/settle → stop collector →
+  Grafana snapshot API → archive artifact.
+- `run_id` scheme: `${JOB_NAME}-${BUILD_NUMBER}` + timestamp.
+  `release` scheme: `git describe --tags --always`, normalised to a bare version
+  per **D3** (strip leading `v` / `version ` / trailing `-<n>-g<sha>`).
 - GitHub Actions: build + unit tests + dashboard JSON lint only (no load run).
 
 **Time-box.** 1–2 days.
 
-**Output.** `Jenkinsfile` + a documented manual fallback. 
+**Output.** `Jenkinsfile` + a documented manual fallback, plus the confirmed
+`release` normalisation function.
 
-**Decision it informs.** FR17, FR18, OQ3.
+**Decision it informs.** FR17, FR18, D3.
 
 ---
 
-## Spike G — EAP parity and forward path (optional, low priority)
+## Spike G — EAP parity and forward path (desk review only — D2)
 
 **Question.** Where might WildFly 26.1 and EAP 7.4 diverge for this solution, and
 what breaks on EAP 8 / Jakarta EE 10 (`jakarta.*` namespace)?
 
-**Do.** Desk review + optionally deploy the same WARs to an EAP 7.4 trial on the
-VM. List: subsystem defaults (MicroProfile Metrics on/off), module/classloading
-differences, `javax.*`→`jakarta.*` for the instrumentation module, Micrometer /
-Prometheus client versions that support both.
+**Do.** **Desk review only** (no EAP install on the VM this phase — D2). List:
+subsystem defaults (MicroProfile Metrics on/off), module/classloading
+differences, `javax.*`→`jakarta.*` for the instrumentation module, JDK 17 notes,
+Micrometer / Prometheus client versions that support both EE 8 and EE 10.
 
-**Time-box.** 1 day (desk) + 0.5 day (VM, if done).
+**Time-box.** 1 day.
 
-**Output.** A "porting notes" section in `docs/`.
+**Output.** `docs/porting-notes.md`.
 
-**Decision it informs.** NFR6, G7, OQ2.
+**Decision it informs.** NFR6, G7.
 
 ---
 

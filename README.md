@@ -18,10 +18,9 @@ licensed binaries or workplace-specific detail are included.
 
 ## Status
 
-Design phase. See `docs/`:
+Technical solution **approved** (2026-09-10). Implementation starting at Phase 0
+(VM + repo skeleton). See `docs/`:
 
 1. [`docs/01-requirements.md`](docs/01-requirements.md)
 2. [`docs/02-spikes.md`](docs/02-spikes.md)
-3. [`docs/03-technical-solution.md`](docs/03-technical-solution.md) — **awaiting review**
-
-Implementation has not started.
+3. [`docs/03-technical-solution.md`](docs/03-technical-solution.md) — approved; decisions in §9

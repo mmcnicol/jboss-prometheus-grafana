@@ -7,7 +7,7 @@ Date: 2026-09-10
 
 A Jakarta EE 8 web application is hosted on JBoss EAP 7.4. The UI layer uses JSF
 and PrimeFaces 13.0.0 with a commercial layout theme. The system comprises one
-main application WAR and roughly 30 microservice WARs. Delivery uses Git
+main application WAR and more than 10 microservice WARs. Delivery uses Git
 (`main`, `develop`, release branches) and Maven, with Jenkins for CI.
 
 Environment split matters here: the **dev/CI hosts** (Jenkins and agents,
@@ -189,8 +189,9 @@ microservices standing in for the real system.
   module with no dependency on the demo app, so it can be dropped into the real
   WARs.
 - **NFR6 — Compatibility**: builds and runs on WildFly 26.1 (Jakarta EE 8,
-  `javax.*`, MicroProfile 4.x); documented deltas for EAP 7.4 and a documented
-  path to EAP 8 / EE 10 (`jakarta.*`).
+  `javax.*`, MicroProfile 4.x) on **JDK 17**; documented deltas for EAP 7.4
+  (also JDK 17 at the workplace) and a documented path to EAP 8 / EE 10
+  (`jakarta.*`).
 - **NFR6a — OS-agnostic**: every part of the collection path (instrumentation
   module, metrics endpoint, OTel Collector, k6, and any phase-2 JBoss/JVM
   exporter) must run unchanged whether the app server is on RHEL or **Windows**,
@@ -212,19 +213,30 @@ microservices standing in for the real system.
   Docker/Podman, no local JDK/Maven yet, changes are lost on freeze unless
   committed and pushed. Frequent small commits are required.
 
-## 8. Open questions
+## 8. Decisions (resolved 2026-09-10)
 
-- **OQ1** — Preferred free PrimeFaces theme for the demo (the workplace uses a
-  commercial layout theme that cannot be redistributed). Proposal: a built-in
-  free PrimeFaces theme, with a documented "swap point" for the commercial one.
-- **OQ2** — Is a real EAP 7.4 parity check on the VM wanted in this phase, or
-  deferred? (Requires a Red Hat developer subscription that the engineer would
-  supply on the VM.)
-- **OQ3** — Target release/branch naming to use as the `release` label
-  (`git describe`, branch name, or a supplied build number)?
-- **OQ4** — Is a lightweight results store (like the engineer's earlier Go "test
-  store") wanted as a durable home for per-run summaries, or is Prometheus +
-  recording rules sufficient for the trend history?
+- **D1 (was OQ1)** — Demo uses the free bundled PrimeFaces **Saga** theme
+  (light) with a simple layout template. The `primefaces.THEME` context param in
+  `web.xml` is the documented swap point for a commercial theme; the layout
+  template is deliberately separate so it can be replaced independently.
+- **D2 (was OQ2)** — Real EAP 7.4 parity check on the VM is **out of scope for
+  now**. Spike G stays a desk review only.
+- **D3 (was OQ3)** — `release` label defaults to `git describe --tags --always`,
+  **normalised** to a bare semantic version where possible (e.g. a tag like
+  `version 1.0.0` or `v1.0.0` → `1.0.0`). The Maven release process at the
+  engineer's workplace may put extra text in the tag; the normalisation rule
+  will be confirmed if it turns out to matter. A `RELEASE` pipeline parameter
+  can always override.
+- **D4 (was OQ4)** — **Recording-rules-only** for now. No separate results
+  service. Revisit only if recording rules prove awkward for the trend history.
+- **D5** — App server target JDK is **17** (the workplace runs EAP 7.4 on JDK
+  17; EAP 7.4 and WildFly 26.1 both support it).
+- **D6** — Primary UI scenario driver is **Selenium (Java + TestNG)**; k6
+  browser is the alternative / client-side cross-check.
+- **D7** — GCP: project `mmcnicol-geneology`, `e2-standard-4`, Grafana port
+  firewalled to the engineer's current public IP only.
+- **D8** — Phasing: Phase 0–1 (see `03-technical-solution.md` §6) is the agreed
+  "simple first" cut; services and JVM metrics follow.
 
 ## 9. Acceptance criteria (first increment)
 
