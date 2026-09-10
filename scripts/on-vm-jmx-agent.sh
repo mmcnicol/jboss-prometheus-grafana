@@ -18,9 +18,9 @@ AGENT_OPT="-javaagent:${JMX_JAR}=${PORT}:${JMX_CONF}"
 case "${1:-}" in
   on)
     sudo mkdir -p "$JMX_DIR"
-    if [ ! -f "$JMX_JAR" ]; then
+    if [ ! -s "$JMX_JAR" ]; then
       sudo curl -fsSL -o "$JMX_JAR" \
-        "https://repo1.maven.org/maven2/io/prometheus/jmx/jmx_prometheus_javaagent/${JMX_VERSION}/jmx_prometheus_javaagent-${JMX_VERSION}.jar"
+        "https://github.com/prometheus/jmx_exporter/releases/download/${JMX_VERSION}/jmx_prometheus_javaagent-${JMX_VERSION}.jar"
     fi
     sudo cp observability/jmx-exporter/config.yaml "$JMX_CONF"
     sudo chmod -R a+rX "$JMX_DIR"
