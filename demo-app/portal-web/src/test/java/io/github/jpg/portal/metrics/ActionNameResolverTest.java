@@ -5,8 +5,24 @@ import org.junit.jupiter.api.Test;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class ActionNameResolverTest {
+
+    @Test
+    void pollRequestsAreDropped() {
+        assertNull(ActionNameResolver.resolve(
+                Map.of("javax.faces.source", "listForm:countPoll",
+                        "javax.faces.partial.ajax", "true"),
+                "/secure/discharges.xhtml"));
+    }
+
+    @Test
+    void pollDropWinsOverExplicitAction() {
+        assertNull(ActionNameResolver.resolve(
+                Map.of("javax.faces.source", "listForm:countPoll", "_action", "sneaky"),
+                "/secure/discharges.xhtml"));
+    }
 
     @Test
     void explicitActionParamWins() {

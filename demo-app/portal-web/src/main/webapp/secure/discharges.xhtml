@@ -9,7 +9,15 @@
 
     <ui:define name="content">
         <h:form id="listForm" styleClass="card" prependId="true">
-            <h2>Discharges <span class="app-user">(#{dischargeListBean.count})</span></h2>
+            <h2>Discharges
+                <h:panelGroup id="count" layout="span" styleClass="app-user">
+                    (#{dischargeListBean.count})
+                </h:panelGroup>
+            </h2>
+
+            <!-- Auto-refresh the count. This AJAX request must NOT be timed as a
+                 user action — ActionNameResolver drops javax.faces.source=...:countPoll. -->
+            <p:poll id="countPoll" interval="5" update="count" listener="#{dischargeListBean.refresh}"/>
 
             <p:dataTable id="table" value="#{dischargeListBean.discharges}" var="d"
                          paginator="true" rows="10" rowsPerPageTemplate="10,25,50">

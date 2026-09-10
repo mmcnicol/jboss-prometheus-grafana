@@ -37,12 +37,45 @@
       <version>${project.version}</version>
     </dependency>
 
+    <!-- Exactly one backend, chosen by profile (Spike A). See <profiles> below. -->
+
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <profiles>
+    <!-- Default. Maven disables activeByDefault profiles automatically when the
+         prometheus-client profile is activated with -Dbackend=prometheus-client. -->
+    <profile>
+      <id>micrometer</id>
+      <activation>
+        <activeByDefault>true</activeByDefault>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>io.github.jpg</groupId>
+          <artifactId>metrics-micrometer</artifactId>
+          <version>${project.version}</version>
+        </dependency>
+      </dependencies>
+    </profile>
+    <profile>
+      <id>prometheus-client</id>
+      <activation>
+        <property><name>backend</name><value>prometheus-client</value></property>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>io.github.jpg</groupId>
+          <artifactId>metrics-prometheus</artifactId>
+          <version>${project.version}</version>
+        </dependency>
+      </dependencies>
+    </profile>
+  </profiles>
 
   <build>
     <finalName>portal-web</finalName>

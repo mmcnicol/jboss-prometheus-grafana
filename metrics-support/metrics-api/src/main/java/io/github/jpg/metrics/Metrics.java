@@ -39,6 +39,15 @@ public interface Metrics {
     void increment(String counter, String... labelPairs);
 
     /**
+     * Render the current metrics for the scrape endpoint. Empty when metrics are
+     * disabled or the backend has no HTTP exposition — the {@code /metrics}
+     * endpoint then responds 404.
+     */
+    default java.util.Optional<MetricsScrape> scrape() {
+        return java.util.Optional.empty();
+    }
+
+    /**
      * The configured backend, or a no-op instance when metrics are disabled or
      * no backend is on the classpath.
      */

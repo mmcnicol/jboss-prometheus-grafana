@@ -26,6 +26,11 @@ public class DischargeListBean implements Serializable {
         discharges = store.findAll();
     }
 
+    /** Called by the {@code p:poll} auto-refresh on the list page. */
+    public void refresh() {
+        discharges = store.findAll();
+    }
+
     public List<Discharge> getDischarges() {
         return discharges;
     }
