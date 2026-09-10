@@ -6,6 +6,13 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * Tests {@link MetricsToggle#readFresh()} — the property-parsing logic.
+ *
+ * <p>{@link MetricsToggle#isEnabled()} caches its value at class-init time and so
+ * cannot be exercised for both states within one JVM; that behaviour is covered
+ * by the deploy-time checks in {@code docs/} (metrics on vs off), not here.
+ */
 class MetricsToggleTest {
 
     @AfterEach
@@ -14,31 +21,26 @@ class MetricsToggleTest {
     }
 
     @Test
-    void defaultsToDisabled() {
+    void defaultsToDisabledWhenUnset() {
         System.clearProperty(MetricsToggle.PROPERTY);
         assertFalse(MetricsToggle.readFresh());
     }
 
     @Test
-    void enabledOnlyForExactlyTrue() {
+    void trueIsCaseInsensitive() {
         System.setProperty(MetricsToggle.PROPERTY, "true");
         assertTrue(MetricsToggle.readFresh());
-
         System.setProperty(MetricsToggle.PROPERTY, "TRUE");
         assertTrue(MetricsToggle.readFresh());
-
-        System.setProperty(MetricsToggle.PROPERTY, "yes");
-        assertFalse(MetricsToggle.readFresh());
-
-        System.setProperty(MetricsToggle.PROPERTY, "1");
-        assertFalse(MetricsToggle.readFresh());
+        System.setProperty(MetricsToggle.PROPERTY, "True");
+        assertTrue(MetricsToggle.readFresh());
     }
 
     @Test
-    void cachedValueMatchesStartupProperty() {
-        // The class was initialised with the property unset (see surefire config),
-        // so the cached value must be false regardless of later changes.
-        System.setProperty(MetricsToggle.PROPERTY, "true");
-        assertFalse(MetricsToggle.isEnabled(), "isEnabled() must reflect the value read at class-init time");
+    void nonTrueValuesAreDisabled() {
+        for (String v : new String[] {"false", "yes", "1", "on", "", "  "}) {
+            System.setProperty(MetricsToggle.PROPERTY, v);
+            assertFalse(MetricsToggle.readFresh(), "value '" + v + "' should be disabled");
+        }
     }
 }
