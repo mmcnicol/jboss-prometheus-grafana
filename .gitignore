@@ -17,5 +17,3 @@ dependency-reduced-pom.xml
 .DS_Store
 *.log
 
-# workshop generated decks (regenerate with build_decks.py)
-docs/workshop/*.pptx
