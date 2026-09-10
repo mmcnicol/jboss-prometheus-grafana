@@ -32,6 +32,9 @@ export const options = {
   },
 };
 
+// JSF client ids contain ':', which must be escaped in a CSS selector.
+const byId = (id) => `#${id.replace(/:/g, '\\:')}`;
+
 async function timed(action, fn) {
   const start = Date.now();
   await fn();
@@ -43,35 +46,35 @@ export default async function () {
   try {
     await timed('login', async () => {
       await page.goto(`${BASE_URL}/login.xhtml`);
-      await page.locator('input[name="loginForm:username"]').type('perf-user');
-      await page.locator('input[name="loginForm:password"]').type('test');
+      await page.locator(byId('loginForm:username')).type('perf-user');
+      await page.locator(byId('loginForm:password')).type('test');
       await Promise.all([
         page.waitForNavigation(),
-        page.locator('input[name="loginForm:loginButton"]').click(),
+        page.locator(byId('loginForm:loginButton')).click(),
       ]);
-      check(page, { 'on discharge list': (p) => p.url().includes('/secure/discharges.xhtml') });
     });
+    check(page, { 'on discharge list': (p) => p.url().includes('/secure/discharges.xhtml') });
 
     sleep(THINK_MS / 1000);
 
     await timed('discharge.view', async () => {
       await page.goto(`${BASE_URL}/secure/discharge.xhtml`);
-      await page.locator('input[name="dischargeForm:patientReference"]').waitFor();
+      await page.locator(byId('dischargeForm:patientReference')).waitFor();
     });
 
     sleep(THINK_MS / 1000);
 
     await timed('discharge.save', async () => {
       const ref = `PT-${Math.random().toString(16).slice(2, 10).toUpperCase()}`;
-      await page.locator('input[name="dischargeForm:patientReference"]').type(ref);
-      await page.locator('input[name="dischargeForm:ward"]').type('Ward A');
-      await page.locator('textarea[name="dischargeForm:summary"]').type('k6-browser generated discharge.');
+      await page.locator(byId('dischargeForm:patientReference')).type(ref);
+      await page.locator(byId('dischargeForm:ward')).type('Ward A');
+      await page.locator(byId('dischargeForm:summary')).type('k6-browser generated discharge.');
       await Promise.all([
         page.waitForNavigation(),
-        page.locator('input[name="dischargeForm:saveButton"]').click(),
+        page.locator(byId('dischargeForm:saveButton')).click(),
       ]);
-      check(page, { 'saved -> list': (p) => p.url().includes('/secure/discharges.xhtml') });
     });
+    check(page, { 'saved -> list': (p) => p.url().includes('/secure/discharges.xhtml') });
 
     sleep(THINK_MS / 1000);
   } finally {
