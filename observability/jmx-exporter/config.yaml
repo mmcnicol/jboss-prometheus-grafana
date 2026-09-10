@@ -3,47 +3,36 @@
 # management port can't be reached, or you want vendor-neutral metric names.
 #
 # Enable:  ./scripts/on-vm-jmx-agent.sh on     (adds -javaagent + restarts WildFly)
-# The agent serves http://<host>:9404/metrics ; keep that port internal (NFR7).
+# Serves http://<host>:9404/metrics ; keep that port internal (NFR7).
+#
+# Minimal, version-robust: export the JVM + Undertow MBeans and let the default
+# naming apply. Tighten with `rules:` once you know which metrics you want.
 
 lowercaseOutputName: true
 lowercaseOutputLabelNames: true
 
-# Keep the MBean traversal cheap: only these object-name domains.
-includeObjectNames:
-  - "java.lang:*"
-  - "java.nio:*"
-  - "jboss.as:subsystem=undertow,*"
-  - "jboss.threads:*"
-
 rules:
-  # Heap / non-heap usage
+  # JVM memory (heap / non-heap)
   - pattern: 'java.lang<type=Memory><(HeapMemoryUsage|NonHeapMemoryUsage)>(\w+)'
     name: jvm_memory_$1_$2_bytes
     type: GAUGE
   # GC
-  - pattern: 'java.lang<type=GarbageCollector, name=(.+)><>CollectionCount'
-    name: jvm_gc_collection_count
+  - pattern: 'java.lang<type=GarbageCollector, name=(.+)><>(CollectionCount|CollectionTime)'
+    name: jvm_gc_$2
     labels: { gc: "$1" }
     type: COUNTER
-  - pattern: 'java.lang<type=GarbageCollector, name=(.+)><>CollectionTime'
-    name: jvm_gc_collection_time_ms
-    labels: { gc: "$1" }
-    type: COUNTER
-  # Threads
+  # Threads / classes / CPU
   - pattern: 'java.lang<type=Threading><>(ThreadCount|DaemonThreadCount|PeakThreadCount)'
     name: jvm_threads_$1
     type: GAUGE
-  # Classes
-  - pattern: 'java.lang<type=ClassLoading><>(LoadedClassCount|TotalLoadedClassCount|UnloadedClassCount)'
+  - pattern: 'java.lang<type=ClassLoading><>(LoadedClassCount|TotalLoadedClassCount)'
     name: jvm_classes_$1
     type: GAUGE
-  # Process CPU
-  - pattern: 'java.lang<type=OperatingSystem><>(ProcessCpuLoad|SystemCpuLoad|SystemLoadAverage|OpenFileDescriptorCount)'
+  - pattern: 'java.lang<type=OperatingSystem><>(ProcessCpuLoad|SystemLoadAverage|OpenFileDescriptorCount)'
     name: process_$1
     type: GAUGE
-  # Undertow (needs statistics-enabled=true)
-  - pattern: 'jboss.as<subsystem=undertow, server=(.+), http-listener=(.+)><>(requestCount|bytesSent|bytesReceived|errorCount|processingTime)'
-    name: undertow_$3
-    labels: { server: "$1", listener: "$2" }
-  # Everything else that slipped through the includeObjectNames filter
-  - pattern: ".*"
+  # Undertow HTTP listener stats (needs statistics-enabled=true on the subsystem)
+  - pattern: 'jboss.as<subsystem=undertow, server=(.+), (http|https)-listener=(.+)><>(requestCount|bytesSent|bytesReceived|errorCount|processingTime)'
+    name: undertow_$4
+    labels: { server: "$1", listener: "$3" }
+  # Drop everything else
