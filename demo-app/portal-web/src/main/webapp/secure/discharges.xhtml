@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui:composition xmlns="http://www.w3.org/1999/xhtml"
+                xmlns:h="http://xmlns.jcp.org/jsf/html"
+                xmlns:ui="http://xmlns.jcp.org/jsf/facelets"
+                xmlns:p="http://primefaces.org/ui"
+                template="/WEB-INF/templates/main.xhtml">
+
+    <ui:define name="title">Discharges &#183; Clinical Portal</ui:define>
+
+    <ui:define name="content">
+        <h:form id="listForm" styleClass="card" prependId="true">
+            <h2>Discharges <span class="app-user">(#{dischargeListBean.count})</span></h2>
+
+            <p:dataTable id="table" value="#{dischargeListBean.discharges}" var="d"
+                         paginator="true" rows="10" rowsPerPageTemplate="10,25,50">
+                <p:column headerText="Reference">#{d.patientReference}</p:column>
+                <p:column headerText="Ward">#{d.ward}</p:column>
+                <p:column headerText="Admission">
+                    <h:outputText value="#{d.admissionDate}"/>
+                </p:column>
+                <p:column headerText="Discharge">
+                    <h:outputText value="#{d.dischargeDate}"/>
+                </p:column>
+                <p:column headerText="Summary">#{d.summary}</p:column>
+                <p:column headerText="By">#{d.createdBy}</p:column>
+            </p:dataTable>
+        </h:form>
+    </ui:define>
+</ui:composition>

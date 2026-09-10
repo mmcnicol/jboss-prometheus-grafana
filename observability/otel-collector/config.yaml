@@ -1,0 +1,51 @@
+# OpenTelemetry Collector — load-test run pipeline.
+#
+# Lifetime = one load-test run. Started with the run's identity in the
+# environment; scrapes the app's Prometheus endpoint, stamps every sample with
+# the run labels, and remote-writes to Prometheus.
+#
+# Phase 0: the app has no /metrics endpoint yet (no backend), so this scrapes
+# nothing useful — it is wired and ready for Phase 1.
+
+receivers:
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: portal-web
+          scrape_interval: 5s
+          metrics_path: /metrics
+          static_configs:
+            - targets: ["${env:SCRAPE_TARGET}"]
+
+processors:
+  batch:
+    timeout: 5s
+  resource:
+    attributes:
+      - key: run_id
+        value: ${env:RUN_ID}
+        action: upsert
+      - key: release
+        value: ${env:RELEASE}
+        action: upsert
+      - key: test_type
+        value: ${env:TEST_TYPE}
+        action: upsert
+      - key: env
+        value: ${env:ENV}
+        action: upsert
+
+exporters:
+  prometheusremotewrite:
+    endpoint: ${env:PROM_RW_ENDPOINT}
+    resource_to_telemetry_conversion:
+      enabled: true   # turn run_id/release/... resource attrs into series labels
+  debug:
+    verbosity: normal
+
+service:
+  pipelines:
+    metrics:
+      receivers: [prometheus]
+      processors: [resource, batch]
+      exporters: [prometheusremotewrite, debug]

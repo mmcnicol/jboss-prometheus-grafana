@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui:composition xmlns="http://www.w3.org/1999/xhtml"
+                xmlns:h="http://xmlns.jcp.org/jsf/html"
+                xmlns:ui="http://xmlns.jcp.org/jsf/facelets"
+                xmlns:p="http://primefaces.org/ui"
+                template="/WEB-INF/templates/main.xhtml">
+
+    <ui:define name="title">New discharge &#183; Clinical Portal</ui:define>
+
+    <ui:define name="content">
+        <h:form id="dischargeForm" styleClass="card" prependId="true">
+            <h2>Electronic discharge</h2>
+
+            <div class="grid-2">
+                <div class="field">
+                    <p:outputLabel for="patientReference" value="Patient reference"/>
+                    <p:inputText id="patientReference" value="#{dischargeFormBean.discharge.patientReference}"
+                                 required="true"/>
+                </div>
+                <div class="field">
+                    <p:outputLabel for="ward" value="Ward"/>
+                    <p:inputText id="ward" value="#{dischargeFormBean.discharge.ward}" required="true"/>
+                </div>
+                <div class="field">
+                    <p:outputLabel for="admissionDate" value="Admission date"/>
+                    <p:datePicker id="admissionDate" value="#{dischargeFormBean.discharge.admissionDate}"
+                                  pattern="yyyy-MM-dd"/>
+                </div>
+                <div class="field">
+                    <p:outputLabel for="dischargeDate" value="Discharge date"/>
+                    <p:datePicker id="dischargeDate" value="#{dischargeFormBean.discharge.dischargeDate}"
+                                  pattern="yyyy-MM-dd"/>
+                </div>
+            </div>
+
+            <div class="field">
+                <p:outputLabel for="summary" value="Discharge summary"/>
+                <p:inputTextarea id="summary" value="#{dischargeFormBean.discharge.summary}" rows="4"
+                                 required="true" autoResize="false"/>
+            </div>
+
+            <div class="field">
+                <p:outputLabel for="followUp" value="Follow-up"/>
+                <p:inputTextarea id="followUp" value="#{dischargeFormBean.discharge.followUp}" rows="2"
+                                 autoResize="false"/>
+            </div>
+
+            <div class="form-actions">
+                <p:commandButton id="saveButton" value="Save discharge" action="#{dischargeFormBean.save}"
+                                 ajax="false" styleClass="ui-button-raised"/>
+            </div>
+        </h:form>
+    </ui:define>
+</ui:composition>

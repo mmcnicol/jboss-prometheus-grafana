@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+scrape_configs:
+  # Prometheus' own metrics.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+# Application metrics do NOT arrive by scrape here. During a load-test run the
+# OpenTelemetry Collector scrapes the app and remote-writes the samples in,
+# stamped with run_id / release / test_type / env. See observability/otel-collector/.

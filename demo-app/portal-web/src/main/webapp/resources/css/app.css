@@ -1,0 +1,119 @@
+:root {
+    --line: #e3e8ef;
+    --ink: #1f2a37;
+    --muted: #647084;
+}
+
+body {
+    margin: 0;
+    background: #f4f6fa;
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.app-shell {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 16px 48px;
+}
+
+.app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.app-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.app-badge {
+    font-size: .7rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    background: #eef2ff;
+    color: #4338ca;
+    padding: 2px 6px;
+    border-radius: 4px;
+    vertical-align: middle;
+}
+
+.app-session {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.app-user {
+    color: var(--muted);
+    font-size: .9rem;
+}
+
+.app-nav {
+    display: flex;
+    gap: 16px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.app-main {
+    padding: 24px 0;
+}
+
+.app-footer {
+    color: var(--muted);
+    font-size: .8rem;
+    padding-top: 24px;
+    border-top: 1px solid var(--line);
+}
+
+.login-card {
+    max-width: 360px;
+    margin: 8vh auto 0;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 28px;
+}
+
+.login-card h1 {
+    margin: 0 0 4px;
+    font-size: 1.25rem;
+}
+
+.login-card .hint {
+    color: var(--muted);
+    font-size: .85rem;
+    margin: 0 0 20px;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 16px;
+}
+
+.form-actions {
+    margin-top: 8px;
+}
+
+.card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 20px;
+}
+
+.grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+@media (max-width: 560px) {
+    .grid-2 { grid-template-columns: 1fr; }
+}

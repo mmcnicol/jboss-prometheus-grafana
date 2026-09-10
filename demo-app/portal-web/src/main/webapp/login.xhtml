@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui:composition xmlns="http://www.w3.org/1999/xhtml"
+                xmlns:h="http://xmlns.jcp.org/jsf/html"
+                xmlns:ui="http://xmlns.jcp.org/jsf/facelets"
+                xmlns:p="http://primefaces.org/ui"
+                template="/WEB-INF/templates/main.xhtml">
+
+    <ui:define name="title">Sign in &#183; Clinical Portal</ui:define>
+
+    <ui:define name="content">
+        <h:form id="loginForm" styleClass="login-card" prependId="true">
+            <h1>Sign in</h1>
+            <p class="hint">Any username; password is <code>test</code>.</p>
+
+            <div class="field">
+                <p:outputLabel for="username" value="Username"/>
+                <p:inputText id="username" value="#{loginBean.username}" required="true"
+                             autocomplete="username"/>
+            </div>
+
+            <div class="field">
+                <p:outputLabel for="password" value="Password"/>
+                <p:password id="password" value="#{loginBean.password}" required="true"
+                            feedback="false" autocomplete="current-password"/>
+            </div>
+
+            <div class="form-actions">
+                <p:commandButton id="loginButton" value="Sign in" action="#{loginBean.login}"
+                                 ajax="false" styleClass="ui-button-raised"/>
+            </div>
+        </h:form>
+    </ui:define>
+</ui:composition>
