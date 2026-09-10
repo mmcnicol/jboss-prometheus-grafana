@@ -7,7 +7,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-JMX_VERSION="${JMX_VERSION:-1.6.0}"
+# 0.20.x is the last 0.x line and the one most battle-tested on JBoss/WildFly.
+# The 1.x javaagent conflicts with WildFly 26's boot classloading (see the
+# Spike E finding) — another reason the MicroProfile Metrics subsystem is the
+# recommended source.
+JMX_VERSION="${JMX_VERSION:-0.20.0}"
 JMX_DIR=/opt/jmx-exporter
 JMX_JAR="$JMX_DIR/jmx_prometheus_javaagent.jar"
 JMX_CONF="$JMX_DIR/config.yaml"
@@ -22,7 +26,7 @@ case "${1:-}" in
     sudo mkdir -p "$JMX_DIR"
     if [ ! -s "$JMX_JAR" ]; then
       sudo curl -fsSL -o "$JMX_JAR" \
-        "https://github.com/prometheus/jmx_exporter/releases/download/${JMX_VERSION}/jmx_prometheus_javaagent-${JMX_VERSION}.jar"
+        "https://repo1.maven.org/maven2/io/prometheus/jmx/jmx_prometheus_javaagent/${JMX_VERSION}/jmx_prometheus_javaagent-${JMX_VERSION}.jar"
     fi
     sudo cp observability/jmx-exporter/config.yaml "$JMX_CONF"
     sudo chmod -R a+rX "$JMX_DIR"
