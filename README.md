@@ -18,17 +18,17 @@ licensed binaries or workplace-specific detail are included.
 
 ## Status
 
-**Phase 3 complete** (2026-09-10) — two microservice WARs (`service-a`,
-`service-b`) instrumented via a shared JAX-RS timing filter, a hand-written k6
-HTTP service driver, and a **Service Endpoints** dashboard. That's the full
-top-to-middle load-test picture. Phase 4 next: app-server / JVM metrics via an
-agent (no app code) + EAP porting notes.
+**Phase 4 complete** (2026-09-10) — app-server / JVM metrics from the WildFly /
+EAP **MicroProfile Metrics** subsystem (no agent, no application code), an **App
+Server & JVM** dashboard, and workshop presentation decks. All five build phases
+are done; the solution is ready to propose for adoption.
 
 - [`docs/01-requirements.md`](docs/01-requirements.md)
 - [`docs/02-spikes.md`](docs/02-spikes.md)
 - [`docs/03-technical-solution.md`](docs/03-technical-solution.md) — decisions in §9, phasing in §6
 - [`docs/04-runbook.md`](docs/04-runbook.md) — bring the stack up / down
 - [`docs/findings/`](docs/findings/) — spike results
+- [`docs/workshop/`](docs/workshop/) — presentation decks for a team tech workshop
 
 ## Layout
 
