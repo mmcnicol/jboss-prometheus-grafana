@@ -1,0 +1,179 @@
+{
+  "uid": "user-actions-loadtest",
+  "title": "User Actions — Load Test",
+  "tags": ["jpg", "load-test"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "run_id",
+        "label": "Run",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": { "query": "label_values(portal_user_action_seconds_count, run_id)", "refId": "A" },
+        "sort": 5,
+        "refresh": 2,
+        "includeAll": false,
+        "current": {}
+      },
+      {
+        "name": "action",
+        "label": "Action",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": { "query": "label_values(portal_user_action_seconds_count{run_id=\"$run_id\"}, action)", "refId": "A" },
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "current": { "text": "All", "value": "$__all" },
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Throughput — iterations/sec by action",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (action) (rate(portal_user_action_seconds_count{run_id=\"$run_id\", action=~\"$action\"}[1m]))",
+          "legendFormat": "{{action}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Error rate by action",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (action) (rate(portal_user_action_seconds_count{run_id=\"$run_id\", action=~\"$action\", outcome=\"failure\"}[1m])) / clamp_min(sum by (action) (rate(portal_user_action_seconds_count{run_id=\"$run_id\", action=~\"$action\"}[1m])), 1e-9)",
+          "legendFormat": "{{action}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "p95 latency by action",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (action, le) (rate(portal_user_action_seconds_bucket{run_id=\"$run_id\", action=~\"$action\"}[1m])))",
+          "legendFormat": "{{action}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Latency percentiles — all selected actions",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "p50",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(portal_user_action_seconds_bucket{run_id=\"$run_id\", action=~\"$action\"}[1m])))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "p90",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.90, sum by (le) (rate(portal_user_action_seconds_bucket{run_id=\"$run_id\", action=~\"$action\"}[1m])))",
+          "legendFormat": "p90"
+        },
+        {
+          "refId": "p95",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(portal_user_action_seconds_bucket{run_id=\"$run_id\", action=~\"$action\"}[1m])))",
+          "legendFormat": "p95"
+        },
+        {
+          "refId": "p99",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(portal_user_action_seconds_bucket{run_id=\"$run_id\", action=~\"$action\"}[1m])))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Per-action summary (whole run)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 16 },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byRegexp", "options": ".*p50|.*p90|.*p95|.*p99|.*mean.*" }, "properties": [ { "id": "unit", "value": "s" } ] }
+        ]
+      },
+      "transformations": [
+        { "id": "merge", "options": {} },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "job": true, "instance": true, "run_id": true, "release": true, "test_type": true, "env": true, "service_name": true, "service_instance_id": true, "outcome": true, "__name__": true },
+            "renameByName": {
+              "Value #count": "count",
+              "Value #mean": "mean",
+              "Value #p95": "p95",
+              "Value #p99": "p99"
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "count",
+          "format": "table",
+          "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (action) (portal_user_action_seconds_count{run_id=\"$run_id\", action=~\"$action\"})"
+        },
+        {
+          "refId": "mean",
+          "format": "table",
+          "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (action) (portal_user_action_seconds_sum{run_id=\"$run_id\", action=~\"$action\"}) / sum by (action) (portal_user_action_seconds_count{run_id=\"$run_id\", action=~\"$action\"})"
+        },
+        {
+          "refId": "p95",
+          "format": "table",
+          "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (action, le) (rate(portal_user_action_seconds_bucket{run_id=\"$run_id\", action=~\"$action\"}[$__range])))"
+        },
+        {
+          "refId": "p99",
+          "format": "table",
+          "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum by (action, le) (rate(portal_user_action_seconds_bucket{run_id=\"$run_id\", action=~\"$action\"}[$__range])))"
+        }
+      ]
+    }
+  ]
+}
