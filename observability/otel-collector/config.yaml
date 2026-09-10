@@ -34,16 +34,16 @@ processors:
       - key: env
         value: ${env:ENV}
         action: upsert
-  # Drop the scrape-transport labels the Prometheus receiver adds; keep the
-  # meaningful ones (job, instance, service_name) and our run labels.
-  transform:
-    metric_statements:
-      - context: datapoint
-        statements:
-          - delete_key(attributes, "http_scheme")
-          - delete_key(attributes, "url_scheme")
-          - delete_key(attributes, "net_host_port")
-          - delete_key(attributes, "server_port")
+      # Drop the scrape-transport resource attributes the Prometheus receiver
+      # adds, so they don't become series labels. Keep job/instance/service.name.
+      - key: http.scheme
+        action: delete
+      - key: url.scheme
+        action: delete
+      - key: net.host.port
+        action: delete
+      - key: server.port
+        action: delete
 
 exporters:
   prometheusremotewrite:
@@ -57,5 +57,5 @@ service:
   pipelines:
     metrics:
       receivers: [prometheus]
-      processors: [resource, transform, batch]
+      processors: [resource, batch]
       exporters: [prometheusremotewrite, debug]
