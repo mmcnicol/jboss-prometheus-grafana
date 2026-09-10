@@ -1,0 +1,279 @@
+# Recommended Technical Solution
+
+Status: **Awaiting your review** — do not implement until approved.
+Date: 2026-09-10
+
+---
+
+## 1. One-paragraph summary
+
+A self-contained Maven **instrumentation module** provides a tiny internal timing
+API and two interchangeable backends (Micrometer and the Prometheus Java client),
+both gated by the JBoss/WildFly system property `portal.metrics.enabled`
+(default `false`). A demo **JSF/PrimeFaces WAR** plus **two microservice WARs**
+use that module to time key user actions and endpoints. During a load test, an
+**OpenTelemetry Collector** — started and stopped by the CI job, so it lives
+exactly as long as the run — scrapes the app's Prometheus endpoint, stamps every
+sample with `run_id` / `release` / `test_type` / `env`, and remote-writes to
+**Prometheus**. **k6** drives load and also remote-writes its client-side metrics
+with the same run tags. **Grafana** dashboards, provisioned from checked-in JSON,
+show per-action percentiles, a **baseline-vs-candidate overlay** on an
+elapsed-time axis, and a **release trend** panel. Everything runs on one GCP VM
+brought up and torn down by scripts in the repo.
+
+---
+
+## 2. Why this shape
+
+| Requirement pressure | Design response |
+|---|---|
+| "Keep it simple first" (G4) | First increment is only: module + 4 user-action timers in the main WAR + k6 + Prometheus + one Grafana dashboard. Services, JVM metrics, trend panel come after. |
+| Opt-in per run, no continuous emission (G3) | System-property toggle in the app; **collector lifecycle = run lifecycle** (CI starts/stops it). App endpoint exists but is unscraped outside a run. |
+| Run labels without redeploying the app (FR9) | Labels applied in the **collector**, from env vars the CI job sets per run — the same app build serves every run. |
+| Room to add JBoss/JVM metrics later (G5) | Collector is the spine; phase 2 adds a `jmx_exporter` agent / Collector JMX receiver as another source into the same pipeline — **no new app Java**. |
+| Decide Micrometer vs Prometheus client on evidence (FR7) | Both implemented behind one facade; Spike A picks the default; the loser stays wired for a while to prove the abstraction. |
+| Portable to the real WARs (NFR5) | Instrumentation is its own module with no demo-app dependencies. |
+| Public repo, no licensed binaries (FR21) | WildFly 26.1 not EAP; a free PrimeFaces theme with a documented swap point; no EAP/theme binaries committed. |
+| Showcase value | The overlay + trend dashboard and the "two libraries compared" write-up are the artefacts the tech lead can show the app-management team. |
+
+---
+
+## 3. Architecture
+
+```
+                          ┌─────────────────────────── GCP VM (e2-standard-4) ──────────────────────────┐
+                          │                                                                             │
+  k6 (HTTP + optional     │   WildFly 26.1 standalone                                                   │
+  browser), run by CI ────┼──▶  ├── portal-web.war        (JSF / PrimeFaces)                             │
+     │                    │     ├── service-a.war         (JAX-RS / MicroProfile)                        │
+     │ remote_write       │     └── service-b.war         (JAX-RS / MicroProfile)                        │
+     │ (run tags)         │            │                                                                │
+     │                    │            │ /metrics  (served only when portal.metrics.enabled=true)        │
+     │                    │            ▼                                                                 │
+     │                    │   OpenTelemetry Collector  ── scrape ──▶ add run_id/release/test_type/env    │
+     │                    │      (started & stopped by the CI job)        │                              │
+     │                    │                                               │ prometheusremotewrite        │
+     ▼                    │                                               ▼                              │
+  Prometheus  ◀───────────┼───────────────────────────────────────────  Prometheus (TSDB + rules)        │
+     │                    │                                               │                              │
+     └────────────────────┼──────────────────────────────────────────────▶ Grafana (provisioned JSON)    │
+                          │                                                                             │
+                          │   [phase 2] jmx_exporter agent on WildFly ──▶ Collector ──▶ Prometheus       │
+                          └─────────────────────────────────────────────────────────────────────────────┘
+```
+
+- **node_exporter** is *not* required for the core solution (it already exists in
+  the real world for host metrics); optional on the VM for context.
+- The observability stack (Prometheus, Grafana, Collector) runs via
+  **docker compose on the VM** (the VM can run Docker; your laptop cannot).
+  WildFly runs natively on the VM (simpler to attach a JMX agent later, closer to
+  the real deployment).
+
+---
+
+## 4. Components in this repo
+
+```
+jboss-prometheus-grafana/
+├── docs/
+│   ├── 01-requirements.md
+│   ├── 02-spikes.md
+│   ├── 03-technical-solution.md
+│   ├── findings/                 # spike write-ups land here
+│   └── porting-notes.md          # how to drop the module into the real WARs; EAP deltas
+├── metrics-support/              # THE portable module (Maven, no demo-app deps)
+│   ├── metrics-api/              # ActionTimer / Metrics facade + Toggle + no-op impl
+│   ├── metrics-micrometer/       # backend 1
+│   ├── metrics-prometheus/       # backend 2 (Prometheus client_java 1.x)
+│   └── metrics-jsf/              # PhaseListener/Filter that times JSF actions (servlet-api scope: provided)
+├── demo-app/
+│   ├── portal-web/               # JSF + PrimeFaces WAR: login, clinical-form stand-in, list page
+│   ├── service-a/               # JAX-RS WAR
+│   └── service-b/               # JAX-RS WAR
+├── load/
+│   ├── k6/http/                  # scenarios: login, form-save, list, mixed
+│   ├── k6/browser/               # optional browser scenario
+│   └── lib/                      # shared k6 helpers, run-tagging
+├── observability/
+│   ├── docker-compose.yml        # prometheus + grafana + otel-collector
+│   ├── prometheus/               # prometheus.yml, recording rules
+│   ├── otel-collector/           # base config + per-run overlay template
+│   └── grafana/provisioning/     # datasources + dashboards (JSON)
+├── infra/gcp/
+│   ├── up.sh / down.sh           # create/start & stop/delete the VM
+│   ├── bootstrap.sh              # runs on the VM: install docker, java, k6, deploy WARs
+│   └── README.md
+├── ci/
+│   ├── Jenkinsfile               # orchestrates a labelled load run
+│   └── github-actions/build.yml  # build + unit tests + dashboard-lint
+└── run.sh                        # convenience: local-ish end-to-end against the VM
+```
+
+---
+
+## 5. Key design details
+
+### 5.1 The toggle
+
+- Read once at startup: `Boolean.getBoolean("portal.metrics.enabled")`.
+- A single `Metrics` facade. When disabled it returns a shared no-op
+  `ActionTimer`; nothing is registered; the `/metrics` servlet/endpoint is not
+  mapped (a `ServletContainerInitializer` or MP Config check decides).
+- WildFly: set via `bin/standalone.conf` `JAVA_OPTS` or
+  `<system-properties>` in `standalone.xml`. EAP 7.4 identical.
+- No feature flag framework; this is deliberately a JVM property so it matches
+  how the real environments are configured and needs no infra.
+
+### 5.2 The internal API (stable; backends swap under it)
+
+```java
+public interface ActionTimer { void record(Duration d, String outcome); }
+
+public interface Metrics {
+    ActionTimer action(String name);          // e.g. "login", "form.save"
+    void increment(String counter, String... tags);
+    static Metrics get() { /* returns NoOp or the configured backend */ }
+}
+```
+
+Backends: `metrics-micrometer` binds a `PrometheusMeterRegistry`;
+`metrics-prometheus` uses `client_java` 1.x histograms. Both expose the same
+OpenMetrics text on the same path so the collector config is backend-agnostic.
+
+### 5.3 Timing JSF user actions (`metrics-jsf`)
+
+- A `PhaseListener` records wall time from `RESTORE_VIEW` start to
+  `RENDER_RESPONSE` end, keyed by an **action name** resolved from a request
+  parameter (`_action`) that the load script sets, falling back to the view id.
+- Handles the login POST→redirect→GET by correlating on a short-lived token.
+- Outcome = `success` unless an exception is queued or HTTP status ≥ 400.
+- Exact measurement point confirmed by **Spike B**.
+
+### 5.4 Collect-only-during-a-run
+
+- The OTel Collector container is **not** in the always-on compose stack; it's
+  started by `ci/Jenkinsfile` (or `run.sh`) with an env file:
+  `RUN_ID`, `RELEASE`, `TEST_TYPE`, `ENV`, `SCRAPE_TARGET`.
+- Collector pipeline: `prometheus` receiver (scrape app) → `resource` processor
+  (add the run attributes) → `prometheusremotewrite` exporter → Prometheus.
+- At run end the CI job stops the collector; scraping stops; the app keeps
+  serving `/metrics` to no one (cheap) or you also flip the property back.
+
+### 5.5 k6
+
+- HTTP scenarios are primary and headless. Each `k6 run` gets
+  `--tag testid=$RUN_ID --tag release=$RELEASE` and
+  `-o experimental-prometheus-rw` (URL = Prometheus remote-write).
+- Scenarios mark user actions with `group()` names matching the server-side
+  action names so client vs server latency lines up in Grafana.
+- Browser scenario kept separate and optional (heavier, flakier).
+
+### 5.6 Grafana
+
+- **Dashboard 1 — "User Actions — Load Test"**: per-action rate / error% /
+  p50-p90-p95-p99 over elapsed run time. Template variable `$run` over the
+  `run_id` label.
+- **Dashboard 2 — "Baseline vs Candidate"**: variables `$baseline` and
+  `$candidate`; time-series panel with both series; overlay technique chosen in
+  **Spike D** (leading candidate: record an `elapsed_seconds` axis at collection
+  time so both runs start at 0; fallback: Grafana per-query time-shift). Plus a
+  table of p95 deltas per action.
+- **Dashboard 3 — "Release Trend"**: one point per run (p95 login, p95 form-save,
+  error rate), x-axis = `release` / run start time. Backed by a Prometheus
+  **recording rule** that writes a single summary series per run so the trend
+  query stays trivial and history is compact.
+- **Dashboard 4 — "App Server & JVM — Load Test"** (phase 2): heap, GC pause,
+  threads, Undertow request count, datasource pool active/idle/wait.
+- All JSON in `observability/grafana/provisioning/dashboards/`.
+
+### 5.7 GCP VM
+
+- `infra/gcp/up.sh`: `gcloud compute instances create` — `e2-standard-4`,
+  Debian 12, 30 GB disk, a firewall rule limited to **your current public IP**
+  for Grafana (3000) and SSH; everything else stays on `localhost`/VPC.
+- `bootstrap.sh` on the VM: install Docker + Compose plugin, a JDK 11/17, k6,
+  download WildFly 26.1, deploy the three WARs, `docker compose up -d` the
+  observability stack.
+- `infra/gcp/down.sh`: delete the instance and firewall rule. Stopped/deleted
+  between sessions → ~zero cost. Estimate: ~US$0.13/hr while running.
+- Project `mmcnicol-geneology` (already in your gcloud config) unless you say
+  otherwise.
+
+### 5.8 CI
+
+- **Jenkinsfile** stages: `Checkout` → `Build WARs` → `Deploy to WildFly`
+  (or assume already deployed) → `Start collector (run env)` →
+  `k6 run` → `Settle 30s` → `Stop collector` → `Write recording rule eval` →
+  `Grafana snapshot` → `Archive PNG/snapshot URL`.
+- Parameters: `RELEASE` (default `git describe --tags --always`), `TEST_TYPE`,
+  `DURATION`, `VUS`.
+- **GitHub Actions**: `mvn verify` (builds module + WARs, runs unit tests) +
+  a dashboard-JSON lint. No load run in Actions.
+
+---
+
+## 6. Phasing
+
+| Phase | Deliverable | Spikes | Acceptance |
+|---|---|---|---|
+| **0** | Repo skeleton, `metrics-api` + no-op, demo `portal-web` with login + form + list, WildFly on VM, k6 login scenario, Prometheus + Grafana up | — | app deploys; k6 runs; Grafana reachable |
+| **1** (core) | One backend live (per Spike A), 4 user-action timers, toggle working, collector run-scoped with run labels, Dashboard 1, k6 remote-write | A, B, C | acceptance criteria 1–3 in requirements |
+| **2** | Second backend behind facade + comparison write-up; Dashboards 2 & 3 (overlay + trend); Jenkinsfile | D, F | acceptance criteria 4–6 |
+| **3** | `service-a`/`service-b` instrumented + service k6 scenarios ("bottom" layer) | — | service percentiles in Grafana |
+| **4** | App-server/JVM metrics via agent (no app Java); Dashboard 4; porting-notes.md; EAP deltas | E, G | acceptance criteria 7–8 |
+
+Phase 0–1 is the "keep it simple" milestone to demo before going wider.
+
+---
+
+## 7. "Try more than one solution?" — yes, in two bounded places
+
+1. **Instrumentation library** (Micrometer vs Prometheus client) — both built,
+   compared, one chosen. Low cost because the facade isolates them.
+2. **Run-labelling / export path** — document all three (Collector, Pushgateway,
+   k6 remote-write); implement **Collector + k6 remote-write**; reject
+   Pushgateway with a written reason. The comparison is itself a showcase
+   artefact.
+
+Not proposing to build a second app server, a second load tool, or a second
+dashboards stack — that spends effort without informing a real decision.
+
+---
+
+## 8. Risks and mitigations
+
+| Risk | Mitigation |
+|---|---|
+| WildFly's MicroProfile Metrics subsystem clashes with our registry | Spike A decides: disable the subsystem or namespace our metrics; documented for EAP. |
+| Laptop freezes lose work | Frequent commits; all real work happens in the repo or on the VM; `infra` scripts are idempotent. |
+| Per-run `run_id` cardinality in Prometheus | Few runs; recording rules collapse each run to a summary series; raw series retention kept short. |
+| JSF action timing misattributes AJAX/redirect flows | Spike B; correlation token for login; explicit tests. |
+| Collector config per run is fiddly | Env-var-driven `resource` processor, not templated YAML, if Spike C confirms it works. |
+| Commercial PrimeFaces theme not redistributable | Free built-in theme + a one-line documented swap point (OQ1). |
+| Cloud cost / left-running VM | `down.sh` deletes it; document the check; optional budget alert. |
+| Scope creep into JVM/MBean land (repeat of last time) | Phasing makes it explicit and last; phase-2 route uses an agent with **no custom Java to unit-test**. |
+
+---
+
+## 9. What I need from you (review)
+
+Please confirm or correct:
+
+1. **Phasing** — is Phase 0–1 the right "simple first" cut, or do you want
+   services (Phase 3) folded into the first milestone?
+2. **Default JDK on the VM** — 11 or 17 for WildFly 26.1? (Real env is likely
+   JDK 11 on EAP 7.4 — I'll default to 11 unless you say otherwise.)
+3. **`release` label source** — `git describe --tags --always` OK, or a supplied
+   build number? (OQ3)
+4. **Results store** (OQ4) — Prometheus recording rules only, or do you want a
+   small durable results service like your earlier Go "test store"? I lean
+   recording-rules-only for now.
+5. **Free PrimeFaces theme** choice (OQ1) — any preference, or my pick?
+6. **EAP 7.4 parity check on the VM** (OQ2) — in scope now, or Spike G stays
+   desk-only?
+7. **GCP** — OK to use project `mmcnicol-geneology` and an `e2-standard-4`, with
+   the Grafana port firewalled to your current IP only?
+8. Anything in `01-requirements.md` to add, cut, or reword before I treat it as
+   the baseline.
+
+Once you approve, I'll start at Phase 0 and bring up the VM.
