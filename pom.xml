@@ -26,7 +26,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
     <!-- Jakarta EE 8 / javax.* — matches WildFly 26.1 and EAP 7.4 -->
-    <javaee.api.version>8.0.1</javaee.api.version>
+    <javaee.api.version>8.0.0</javaee.api.version>
     <primefaces.version>13.0.0</primefaces.version>
 
     <!-- test -->
