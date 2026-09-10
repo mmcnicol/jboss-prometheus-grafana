@@ -32,12 +32,13 @@ if ! command -v k6 >/dev/null 2>&1; then
 fi
 
 log "wildfly $WILDFLY_VERSION"
-if [ ! -d "${WFLY_HOME}-${WILDFLY_VERSION}" ]; then
+if [ ! -x "${WFLY_HOME}-${WILDFLY_VERSION}/bin/standalone.sh" ]; then
+  sudo rm -rf "${WFLY_HOME}-${WILDFLY_VERSION}"
   tmp="$(mktemp -d)"
   curl -fsSL -o "$tmp/wildfly.zip" \
     "https://github.com/wildfly/wildfly/releases/download/${WILDFLY_VERSION}/wildfly-${WILDFLY_VERSION}.zip"
+  # zip's top-level dir is already "wildfly-<version>"
   sudo unzip -q "$tmp/wildfly.zip" -d /opt
-  sudo mv "/opt/wildfly-${WILDFLY_VERSION}" "${WFLY_HOME}-${WILDFLY_VERSION}"
   rm -rf "$tmp"
 fi
 sudo ln -sfn "${WFLY_HOME}-${WILDFLY_VERSION}" "$WFLY_HOME"
