@@ -101,7 +101,7 @@
         {
           "refId": "client",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "max(k6_http_req_duration_p95{run_id=\"$run_id\"}) / 1000",
+          "expr": "max(k6_http_req_duration_p95{run_id=\"$run_id\"})",
           "legendFormat": "client p95 (k6, max endpoint)"
         }
       ]
