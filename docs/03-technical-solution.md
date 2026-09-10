@@ -11,12 +11,17 @@ A self-contained Maven **instrumentation module** provides a tiny internal timin
 API and two interchangeable backends (Micrometer and the Prometheus Java client),
 both gated by the JBoss/WildFly system property `portal.metrics.enabled`
 (default `false`). A demo **JSF/PrimeFaces WAR** plus **two microservice WARs**
-use that module to time key user actions and endpoints. During a load test, an
-**OpenTelemetry Collector** — started and stopped by the CI job, so it lives
-exactly as long as the run — scrapes the app's Prometheus endpoint, stamps every
-sample with `run_id` / `release` / `test_type` / `env`, and remote-writes to
-**Prometheus**. **k6** drives load and also remote-writes its client-side metrics
-with the same run tags. **Grafana** dashboards, provisioned from checked-in JSON,
+use that module to time key user actions and endpoints. **The authoritative
+timing for a UI action is measured server-side by the module** (a JSF
+PhaseListener/filter), keyed by an action name — so the load driver only has to
+*perform the scenario steps*, it does not have to measure a UI action in
+isolation. During a load test, an **OpenTelemetry Collector** — started and
+stopped by the CI job, so it lives exactly as long as the run — scrapes the app's
+Prometheus endpoint, stamps every sample with `run_id` / `release` / `test_type`
+/ `env`, and remote-writes to **Prometheus**. The scenario is driven by a
+**pluggable driver** (k6 browser, Selenium/Java, or k6 HTTP for services); the
+driver may also remote-write its own client-side timings with the same run tags
+as a cross-check. **Grafana** dashboards, provisioned from checked-in JSON,
 show per-action percentiles, a **baseline-vs-candidate overlay** on an
 elapsed-time axis, and a **release trend** panel. Everything runs on one GCP VM
 brought up and torn down by scripts in the repo.
@@ -27,7 +32,8 @@ brought up and torn down by scripts in the repo.
 
 | Requirement pressure | Design response |
 |---|---|
-| "Keep it simple first" (G4) | First increment is only: module + 4 user-action timers in the main WAR + k6 + Prometheus + one Grafana dashboard. Services, JVM metrics, trend panel come after. |
+| "Keep it simple first" (G4) | First increment is only: module + 4 user-action timers in the main WAR + one UI driver + Prometheus + one Grafana dashboard. Services, JVM metrics, trend panel come after. |
+| Can't time a UI action "in isolation" with a load tool; JSF template = URL barely changes; recorded HTTP is huge/brittle; polling adds noise | **Measure server-side, keyed off JSF** (`javax.faces.source` / view id), not off the driver. Driver just performs steps. Poll requests filtered by component id. Driver is pluggable (Selenium/Java, k6 browser, k6 HTTP). |
 | Opt-in per run, no continuous emission (G3) | System-property toggle in the app; **collector lifecycle = run lifecycle** (CI starts/stops it). App endpoint exists but is unscraped outside a run. |
 | Run labels without redeploying the app (FR9) | Labels applied in the **collector**, from env vars the CI job sets per run — the same app build serves every run. |
 | Room to add JBoss/JVM metrics later (G5) | Collector is the spine; phase 2 adds a `jmx_exporter` agent / Collector JMX receiver as another source into the same pipeline — **no new app Java**. |
@@ -41,25 +47,24 @@ brought up and torn down by scripts in the repo.
 ## 3. Architecture
 
 ```
-                          ┌─────────────────────────── GCP VM (e2-standard-4) ──────────────────────────┐
-                          │                                                                             │
-  k6 (HTTP + optional     │   WildFly 26.1 standalone                                                   │
-  browser), run by CI ────┼──▶  ├── portal-web.war        (JSF / PrimeFaces)                             │
-     │                    │     ├── service-a.war         (JAX-RS / MicroProfile)                        │
-     │ remote_write       │     └── service-b.war         (JAX-RS / MicroProfile)                        │
-     │ (run tags)         │            │                                                                │
-     │                    │            │ /metrics  (served only when portal.metrics.enabled=true)        │
-     │                    │            ▼                                                                 │
-     │                    │   OpenTelemetry Collector  ── scrape ──▶ add run_id/release/test_type/env    │
-     │                    │      (started & stopped by the CI job)        │                              │
-     │                    │                                               │ prometheusremotewrite        │
-     ▼                    │                                               ▼                              │
-  Prometheus  ◀───────────┼───────────────────────────────────────────  Prometheus (TSDB + rules)        │
-     │                    │                                               │                              │
-     └────────────────────┼──────────────────────────────────────────────▶ Grafana (provisioned JSON)    │
-                          │                                                                             │
-                          │   [phase 2] jmx_exporter agent on WildFly ──▶ Collector ──▶ Prometheus       │
-                          └─────────────────────────────────────────────────────────────────────────────┘
+                          ┌────────────────────────── GCP VM (e2-standard-4) ───────────────────────────┐
+                          │                                                                            │
+  Scenario driver         │   WildFly 26.1 standalone                                                   │
+  - Selenium/Java (UI)    │     ├── portal-web.war   (JSF/PrimeFaces)  ─ server-side per-action timer    │
+  - k6 browser (UI alt)   │─▶   ├── service-a.war    (JAX-RS / MicroProfile)                             │
+  - k6 HTTP  (services)   │     └── service-b.war    (JAX-RS / MicroProfile)                             │
+  run by CI               │            │  /metrics  (served only when portal.metrics.enabled=true)      │
+     │                    │            ▼                                                                │
+     │ k6 remote_write    │   OpenTelemetry Collector  ─ scrape ─▶ add run_id/release/test_type/env      │
+     │ (run tags)         │      (started & stopped by the CI job)          │ prometheusremotewrite      │
+     ▼                    │                                                ▼                            │
+  Prometheus  ◀───────────┼──────────────────────────────────────────  Prometheus (TSDB + rules)        │
+                          │                                                │                            │
+                          │                                                ▼                            │
+                          │                                          Grafana (provisioned JSON)         │
+                          │                                                                            │
+                          │   [phase 2] jmx_exporter -javaagent on WildFly ─▶ Collector ─▶ Prometheus    │
+                          └────────────────────────────────────────────────────────────────────────────┘
 ```
 
 - **node_exporter** is *not* part of this solution. In the real world it runs
@@ -107,9 +112,12 @@ jboss-prometheus-grafana/
 │   ├── service-a/               # JAX-RS WAR
 │   └── service-b/               # JAX-RS WAR
 ├── load/
-│   ├── k6/http/                  # scenarios: login, form-save, list, mixed
-│   ├── k6/browser/               # optional browser scenario
-│   └── lib/                      # shared k6 helpers, run-tagging
+│   ├── scenarios/                # step lists (login → open-form → save-form), driver-agnostic
+│   ├── selenium-java/            # UI driver — Java + TestNG, Maven module (primary UI)
+│   ├── k6/browser/               # UI driver — k6 browser (alternative UI + client cross-check)
+│   ├── k6/http-services/         # service ("middle") endpoint load — hand-written
+│   ├── k6/http-ui-recorded/      # kept only to demonstrate why recorded JSF HTTP is brittle
+│   └── lib/                      # shared run-tagging helpers (run_id/release/test_type)
 ├── observability/
 │   ├── docker-compose.yml        # prometheus + grafana + otel-collector
 │   ├── prometheus/               # prometheus.yml, recording rules
@@ -158,12 +166,34 @@ OpenMetrics text on the same path so the collector config is backend-agnostic.
 
 ### 5.3 Timing JSF user actions (`metrics-jsf`)
 
+The real app uses a JSF page template, so **the URL barely changes as the user
+navigates** — you cannot identify an action from the request path, and a
+recorded HTTP script is large and brittle (lots of resource requests, plus
+PrimeFaces polling). So the module identifies the action **from JSF itself**, not
+from the driver:
+
 - A `PhaseListener` records wall time from `RESTORE_VIEW` start to
-  `RENDER_RESPONSE` end, keyed by an **action name** resolved from a request
-  parameter (`_action`) that the load script sets, falling back to the view id.
-- Handles the login POST→redirect→GET by correlating on a short-lived token.
+  `RENDER_RESPONSE` end.
+- **Action name resolution (in priority order):**
+  1. the JSF navigation outcome / target view id for full-page navigations;
+  2. `javax.faces.source` (the client id of the component that fired the AJAX
+     request) mapped to a friendly name via a small config map — this covers
+     "click Login", "click Save" without the driver doing anything;
+  3. an explicit `_action` request parameter/header **if** a driver chooses to
+     set one (k6 HTTP and k6 browser can; a plain Selenium/WebDriver script
+     cannot easily — hence inference is the default, not the fallback).
+- **Polling is filtered out**: requests whose `javax.faces.source` matches a
+  configured set of `p:poll` / auto-refresh component ids are either ignored or
+  recorded under a separate `poll` action, never mixed into user-action timers.
+- Login POST→redirect→GET is correlated on a short-lived token.
 - Outcome = `success` unless an exception is queued or HTTP status ≥ 400.
-- Exact measurement point confirmed by **Spike B**.
+- Exact measurement point + the source-id map + the poll filter list are pinned
+  down in **Spike B**.
+
+Because the metric is produced server-side and keyed this way, **any driver that
+performs the steps gets correct metrics** — the concern about using a load tool
+to time a UI action "in isolation" goes away, and every step (login → open form →
+save form) is recorded, with filtering done later in Grafana.
 
 ### 5.4 Collect-only-during-a-run
 
@@ -175,14 +205,32 @@ OpenMetrics text on the same path so the collector config is backend-agnostic.
 - At run end the CI job stops the collector; scraping stops; the app keeps
   serving `/metrics` to no one (cheap) or you also flip the property back.
 
-### 5.5 k6
+### 5.5 Scenario drivers (pluggable)
 
-- HTTP scenarios are primary and headless. Each `k6 run` gets
-  `--tag testid=$RUN_ID --tag release=$RELEASE` and
-  `-o experimental-prometheus-rw` (URL = Prometheus remote-write).
-- Scenarios mark user actions with `group()` names matching the server-side
-  action names so client vs server latency lines up in Grafana.
-- Browser scenario kept separate and optional (heavier, flakier).
+A scenario is an ordered list of steps (e.g. `login`, `open-form`, `save-form`)
+run in a loop under concurrency. The **driver** is swappable; the server-side
+metric is the source of truth in every case. Repo ships:
+
+| Layer | Driver | Why | Notes |
+|---|---|---|---|
+| **UI ("top")** | **Selenium (Java + TestNG)** — primary | Java matches workplace norms; step-based and maintainable; drives the real JSF/PrimeFaces DOM incl. AJAX and template navigation | cannot easily set a request header → relies on server-side action **inference** (5.3) |
+| **UI ("top")** | **k6 browser** — alternative | arguably easier to maintain than recorded HTTP; can set headers/tags | heavier, flakier; good for a quick client-side cross-check |
+| **UI ("top")** | **k6 HTTP (recorded)** — documented, not recommended | works, but a JSF template app produces a large, brittle script full of resource + poll requests | keep only as a "here's why we don't" example |
+| **Service ("middle")** | **k6 HTTP (hand-written)** — primary | microservice endpoints have real URLs and stable contracts; k6's own metrics are appropriate here | this is where `-o experimental-prometheus-rw` + `--tag` shines |
+
+- Every driver run is tagged `testid=$RUN_ID`, `release=$RELEASE`,
+  `test_type=$TEST_TYPE`.
+- Where a driver emits its own timings (k6), they are grouped/labelled with the
+  same action names as the server-side timers so client vs server latency lines
+  up in Grafana.
+- A thin `load/scenarios/<name>.md` defines each scenario's steps once;
+  driver implementations follow it. Adding a Selenium-CLI or chromedp driver
+  later is possible but not shipped — they would measure the same server-side
+  metrics.
+- The old problem ("I want a Jenkins job that hits one feature in a loop and only
+  records a metric for one step") is solved by instrumentation: all steps are
+  recorded when enabled; the loop just drives; Grafana filters to the step of
+  interest.
 
 ### 5.6 Grafana
 
@@ -208,6 +256,7 @@ OpenMetrics text on the same path so the collector config is backend-agnostic.
   Debian 12, 30 GB disk, a firewall rule limited to **your current public IP**
   for Grafana (3000) and SSH; everything else stays on `localhost`/VPC.
 - `bootstrap.sh` on the VM: install Docker + Compose plugin, a JDK 11/17, k6,
+  a headless Chrome/Chromedriver for the Selenium and k6-browser drivers,
   download WildFly 26.1, deploy the three WARs, `docker compose up -d` the
   observability stack.
 - `infra/gcp/down.sh`: delete the instance and firewall rule. Stopped/deleted
@@ -219,8 +268,9 @@ OpenMetrics text on the same path so the collector config is backend-agnostic.
 
 - **Jenkinsfile** stages: `Checkout` → `Build WARs` → `Deploy to WildFly`
   (or assume already deployed) → `Start collector (run env)` →
-  `k6 run` → `Settle 30s` → `Stop collector` → `Write recording rule eval` →
-  `Grafana snapshot` → `Archive PNG/snapshot URL`.
+  `Run scenario (driver = param, loops the steps)` → `Settle 30s` →
+  `Stop collector` → `Write recording rule eval` → `Grafana snapshot` →
+  `Archive PNG/snapshot URL`.
 - Parameters: `RELEASE` (default `git describe --tags --always`), `TEST_TYPE`,
   `DURATION`, `VUS`.
 - **GitHub Actions**: `mvn verify` (builds module + WARs, runs unit tests) +
@@ -232,10 +282,10 @@ OpenMetrics text on the same path so the collector config is backend-agnostic.
 
 | Phase | Deliverable | Spikes | Acceptance |
 |---|---|---|---|
-| **0** | Repo skeleton, `metrics-api` + no-op, demo `portal-web` with login + form + list, WildFly on VM, k6 login scenario, Prometheus + Grafana up | — | app deploys; k6 runs; Grafana reachable |
-| **1** (core) | One backend live (per Spike A), 4 user-action timers, toggle working, collector run-scoped with run labels, Dashboard 1, k6 remote-write | A, B, C | acceptance criteria 1–3 in requirements |
-| **2** | Second backend behind facade + comparison write-up; Dashboards 2 & 3 (overlay + trend); Jenkinsfile | D, F | acceptance criteria 4–6 |
-| **3** | `service-a`/`service-b` instrumented + service k6 scenarios ("bottom" layer) | — | service percentiles in Grafana |
+| **0** | Repo skeleton, `metrics-api` + no-op, demo `portal-web` with login + form + list, WildFly on VM, one UI driver running the login→form→save steps, Prometheus + Grafana up | — | app deploys; scenario runs; Grafana reachable |
+| **1** (core) | One backend live (per Spike A), server-side per-action timers keyed off JSF + poll filter, toggle working, collector run-scoped with run labels, Dashboard 1 | A, B, C | acceptance criteria 1–3 in requirements |
+| **2** | Second backend behind facade + comparison write-up; second UI driver + client-side cross-check; Dashboards 2 & 3 (overlay + trend); Jenkinsfile | D, F | acceptance criteria 4–6 |
+| **3** | `service-a`/`service-b` instrumented + hand-written k6 HTTP service scenarios ("middle" layer) | — | service percentiles in Grafana |
 | **4** | App-server/JVM metrics via agent (no app Java); Dashboard 4; porting-notes.md; EAP deltas | E, G | acceptance criteria 7–8 |
 
 Phase 0–1 is the "keep it simple" milestone to demo before going wider.
@@ -251,8 +301,15 @@ Phase 0–1 is the "keep it simple" milestone to demo before going wider.
    Pushgateway with a written reason. The comparison is itself a showcase
    artefact.
 
-Not proposing to build a second app server, a second load tool, or a second
-dashboards stack — that spends effort without informing a real decision.
+3. **Scenario driver** — implement two (Selenium/Java as primary UI driver, k6
+   browser as alternative + client-side cross-check) and one k6 HTTP service
+   driver. This is genuinely informative: it proves the server-side metric is
+   driver-independent, and it lets the team pick the UI driver they find most
+   maintainable without changing anything else. A recorded-HTTP example is kept
+   only as a cautionary artefact.
+
+Not proposing to build a second app server or a second dashboards stack — that
+spends effort without informing a real decision.
 
 ---
 
@@ -263,7 +320,9 @@ dashboards stack — that spends effort without informing a real decision.
 | WildFly's MicroProfile Metrics subsystem clashes with our registry | Spike A decides: disable the subsystem or namespace our metrics; documented for EAP. |
 | Laptop freezes lose work | Frequent commits; all real work happens in the repo or on the VM; `infra` scripts are idempotent. |
 | Per-run `run_id` cardinality in Prometheus | Few runs; recording rules collapse each run to a summary series; raw series retention kept short. |
-| JSF action timing misattributes AJAX/redirect flows | Spike B; correlation token for login; explicit tests. |
+| JSF action timing misattributes AJAX/redirect flows, or a driver can't set a request marker | Action identified server-side from `javax.faces.source` / view id (no driver marker needed); Spike B pins the source-id map; correlation token for login; explicit tests. |
+| PrimeFaces polling / auto-refresh inflates or pollutes action metrics | Poll component ids configured and filtered (dropped or bucketed as a separate `poll` action); verified in Spike B. |
+| Recorded k6 HTTP script for the JSF app is large and brittle | Not the primary UI path; kept only as a cautionary example. UI load uses Selenium/Java or k6 browser (step-based). |
 | Collector config per run is fiddly | Env-var-driven `resource` processor, not templated YAML, if Spike C confirms it works. |
 | Commercial PrimeFaces theme not redistributable | Free built-in theme + a one-line documented swap point (OQ1). |
 | Cloud cost / left-running VM | `down.sh` deletes it; document the check; optional budget alert. |
@@ -279,6 +338,8 @@ Please confirm or correct:
    services (Phase 3) folded into the first milestone?
 2. **Default JDK on the VM** — 11 or 17 for WildFly 26.1? (Real env is likely
    JDK 11 on EAP 7.4 — I'll default to 11 unless you say otherwise.)
+2a. **Primary UI driver** — Selenium/Java (my pick, matches workplace norms) with
+   k6 browser as the alternative; or would you rather k6 browser be primary?
 3. **`release` label source** — `git describe --tags --always` OK, or a supplied
    build number? (OQ3)
 4. **Results store** (OQ4) — Prometheus recording rules only, or do you want a

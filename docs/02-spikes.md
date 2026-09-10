@@ -42,25 +42,36 @@ the other stays behind the facade for a while as proof the abstraction holds.
 ## Spike B — Measuring a JSF/PrimeFaces user action end-to-end
 
 **Question.** What is the most reliable place to measure "user clicked *Login* →
-next page rendered", and how do server-side and client-side measurements differ
-for PrimeFaces AJAX interactions?
+next page rendered", and — since the app uses a JSF page template so the **URL
+barely changes** — how is an "action" identified **without** the load driver
+having to mark the request (so any driver works: Selenium/Java, k6 browser, k6
+HTTP)?
 
 **Do.**
 - Server-side: a servlet `Filter` around the FacesServlet vs a JSF
   `PhaseListener` (RESTORE_VIEW → RENDER_RESPONSE). Handle AJAX partial
   responses and redirects (POST-then-redirect-GET login flow).
-- Client-side: k6 browser and/or a Navigation Timing capture; compare with the
-  server number for the same action.
-- Decide how an "action" is identified: a request header/param injected by the
-  load script, a URL pattern, or a JSF component id.
+- **Action identification — prefer server-side inference:**
+  - full-page navigation → JSF navigation outcome / target view id;
+  - AJAX interaction → `javax.faces.source` (firing component's client id)
+    mapped to a friendly name via a small config map;
+  - optional `_action` param/header honoured if a driver sets one, but the demo
+    must work when nothing is set.
+  Produce the actual source-id → action-name map for the demo's login/form/list.
+- **Polling:** identify PrimeFaces `p:poll` / auto-refresh component ids in the
+  demo; decide filter vs separate `poll` bucket; confirm they don't pollute the
+  user-action timers.
+- Client-side cross-check: k6 browser and/or Navigation Timing; compare with the
+  server number for the same action; quantify what the server number omits
+  (client render, network, think time).
 
-**Time-box.** 2 days.
+**Time-box.** 2–3 days.
 
-**Output.** A recommended measurement point for the demo, notes on what it does
-and does not capture (client render, network, think time), and how the load
-scripts should mark actions.
+**Output.** Recommended measurement point; the source-id map + poll-filter list
+for the demo; a short note on server-vs-client deltas; confirmation that the
+metric is driver-independent.
 
-**Decision it informs.** FR4, FR5, FR10.
+**Decision it informs.** FR4, FR5, FR10, FR19.
 
 ---
 

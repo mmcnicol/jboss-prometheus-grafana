@@ -90,10 +90,20 @@ microservices standing in for the real system.
   - open the main clinical form (stand-in form) page;
   - save/submit the form;
   - a representative read/list page.
+- **FR4a** — The action is identified **server-side** (from the JSF view id /
+  navigation outcome and `javax.faces.source`), because the app uses a JSF page
+  template and the URL barely changes between actions. A load driver must **not**
+  be required to mark the request for the metric to be attributed correctly — so
+  the same instrumentation works with a Selenium/WebDriver driver, a k6 browser
+  driver, or a k6 HTTP driver.
+- **FR4b** — PrimeFaces polling / auto-refresh requests are identified and
+  excluded from user-action timers (or recorded under a separate `poll` action),
+  so they neither inflate counts nor distort latency.
 - **FR5** — Each user-action metric carries labels for at least: action name,
   outcome (success/failure), and HTTP status class.
 - **FR6** — Microservice WARs expose the same style of instrumentation for a
-  small number of representative endpoints (the "bottom" load-test layer).
+  small number of representative endpoints (the "middle" load-test layer, where
+  endpoints have real URLs and stable contracts).
 - **FR7** — The instrumentation approach is implemented **twice** for comparison
   (Micrometer with a Prometheus registry; Prometheus Java client directly),
   behind the same toggle and the same internal timing API, so a recommendation
@@ -108,9 +118,12 @@ microservices standing in for the real system.
   (e.g. `ui`, `service`, `mixed`), `env`, and `started_at`. This tagging is
   applied **outside** the application (in the collector / push pipeline) so the
   same application build can be used for many runs.
-- **FR10** — Load-generator metrics (k6) are captured for the same run and
-  tagged with the same `run_id` / `release`, so client-observed and
-  server-observed timings can be compared.
+- **FR10** — Where the scenario driver emits its own client-side timings (k6
+  HTTP or k6 browser), they are captured for the same run and tagged with the
+  same `run_id` / `release` and the same action names, so client-observed and
+  server-observed timings can be compared. Drivers that cannot emit metrics
+  (plain Selenium) are still fully supported — the server-side timer is the
+  source of truth.
 - **FR11** — Collected run data is retained long enough to compare across
   releases (weeks–months); raw high-resolution data may be down-sampled or
   summarised after a run.
@@ -142,9 +155,13 @@ microservices standing in for the real system.
   friendliness); Jenkins is the load-run orchestrator.
 - **FR18** — The pipeline can attach a snapshot (image or Grafana snapshot link)
   of the key panel to the build result.
-- **FR19** — Load tests are runnable locally and headless (no interactive
-  browser required) for the HTTP path; a browser-based path is optional and
-  clearly separated.
+- **FR19** — A scenario is defined once as an ordered list of steps
+  (login → open form → save form) and can be executed by a **pluggable driver**:
+  Selenium (Java/TestNG), k6 browser, or k6 HTTP. All drivers run headless and
+  loop the steps under concurrency. The UI driver drives the real JSF/PrimeFaces
+  DOM (AJAX + template navigation); the service driver hits endpoint URLs
+  directly. A recorded-HTTP script for the UI is kept only as a documented
+  example of what not to rely on (large, brittle, polling noise).
 
 ### 5.5 Quality / project constraints
 
@@ -213,8 +230,11 @@ microservices standing in for the real system.
 
 1. `portal.metrics.enabled=false` build/run: no `/metrics`, no measurable
    overhead. `=true`: user-action timers visible in Prometheus.
-2. Two k6 runs executed with different `release` labels; both visible in
-   Prometheus tagged by `run_id` / `release`.
+2. Two scenario runs executed with different `release` labels; server-side
+   per-action timers from both visible in Prometheus tagged by `run_id` /
+   `release`; polling requests absent from the user-action timers.
+2a. The same scenario run by two different drivers (e.g. Selenium and k6 browser)
+   produces the same server-side action metrics.
 3. Grafana "User Actions — Load Test" dashboard provisioned from repo JSON shows
    per-action percentiles for a run.
 4. Overlay panel shows baseline vs candidate on elapsed-time axis + delta table.
