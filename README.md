@@ -18,22 +18,29 @@ licensed binaries or workplace-specific detail are included.
 
 ## Status
 
-**Phase 0 complete** (2026-09-10) — WildFly 26.1 + demo app + Selenium driver +
-Prometheus/Grafana all running on a GCP VM. Phase 1 next: real instrumentation
-behind the toggle, run labels, first dashboard.
+**Phase 1 complete** (2026-09-10) — instrumentation behind the
+`portal.metrics.enabled` toggle (Micrometer default, Prometheus-client alt), the
+OTel Collector stamps each run with `run_id` / `release`, and the "User Actions —
+Load Test" Grafana dashboard renders per-action throughput / error rate / p95.
+Phase 2 next: second UI driver + client cross-check, baseline-vs-candidate
+overlay, release-trend panel, Jenkinsfile.
 
 - [`docs/01-requirements.md`](docs/01-requirements.md)
 - [`docs/02-spikes.md`](docs/02-spikes.md)
 - [`docs/03-technical-solution.md`](docs/03-technical-solution.md) — decisions in §9, phasing in §6
 - [`docs/04-runbook.md`](docs/04-runbook.md) — bring the stack up / down
+- [`docs/findings/`](docs/findings/) — spike results
 
 ## Layout
 
 ```
-metrics-support/metrics-api   portable timing facade + system-property toggle + no-op backend
-demo-app/portal-web           JSF 2.3 + PrimeFaces 13 WAR: login -> discharge form -> list
-load/selenium-java            primary UI scenario driver (Selenium + Java)
-load/scenarios                driver-agnostic scenario step lists
-observability/                docker-compose: Prometheus + Grafana + (run-scoped) OTel Collector
-infra/gcp/                     create / bootstrap / tear down the demo VM
+metrics-support/metrics-api          portable timing facade + system-property toggle + no-op
+metrics-support/metrics-micrometer   backend: Micrometer + Prometheus registry (default)
+metrics-support/metrics-prometheus   backend: Prometheus Java client (alt, -Dbackend=prometheus-client)
+demo-app/portal-web                  JSF 2.3 + PrimeFaces 13 WAR: login -> discharge form -> list
+load/selenium-java                   primary UI scenario driver (Selenium + Java)
+load/scenarios                       driver-agnostic scenario step lists
+load/run-loadtest.sh                 one labelled run: collector up -> scenario -> collector down
+observability/                       docker-compose: Prometheus + Grafana + (run-scoped) OTel Collector
+infra/gcp/                            create / bootstrap / tear down the demo VM
 ```
