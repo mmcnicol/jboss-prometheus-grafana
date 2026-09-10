@@ -1,0 +1,104 @@
+{
+  "uid": "app-server-jvm-loadtest",
+  "title": "App Server & JVM — Load Test",
+  "tags": ["jpg", "load-test"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "run_id",
+        "label": "Run",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": { "query": "label_values(base_memory_usedHeap_bytes, run_id)", "refId": "A" },
+        "sort": 5,
+        "refresh": 2,
+        "includeAll": false,
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1, "type": "text", "gridPos": { "h": 2, "w": 24, "x": 0, "y": 0 },
+      "options": { "mode": "markdown", "content": "Source: WildFly / EAP **MicroProfile Metrics** subsystem (`:9990/metrics`) — no agent, no application code (Spike E). Collected only during a load-test run, stamped with the run labels." }
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Heap memory",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 2 },
+      "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+        "overrides": [ { "matcher": { "id": "byName", "options": "max" }, "properties": [ { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10,10] } }, { "id": "custom.fillOpacity", "value": 0 } ] } ] },
+      "targets": [
+        { "refId": "used", "expr": "base_memory_usedHeap_bytes{run_id=\"$run_id\"}", "legendFormat": "used", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "refId": "committed", "expr": "base_memory_committedHeap_bytes{run_id=\"$run_id\"}", "legendFormat": "committed", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "refId": "max", "expr": "base_memory_maxHeap_bytes{run_id=\"$run_id\"}", "legendFormat": "max", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "GC — collections/s and time fraction",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 2 },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+        "overrides": [ { "matcher": { "id": "byName", "options": "gc time fraction" }, "properties": [ { "id": "unit", "value": "percentunit" }, { "id": "custom.axisPlacement", "value": "right" } ] }, { "matcher": { "id": "byName", "options": "collections/s" }, "properties": [ { "id": "unit", "value": "ops" } ] } ] },
+      "targets": [
+        { "refId": "count", "expr": "sum(rate(base_gc_total{run_id=\"$run_id\"}[1m]))", "legendFormat": "collections/s", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "refId": "time", "expr": "sum(rate(base_gc_time_total_seconds{run_id=\"$run_id\"}[1m]))", "legendFormat": "gc time fraction", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Threads",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 10 },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "all", "expr": "base_thread_count{run_id=\"$run_id\"}", "legendFormat": "live", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "refId": "daemon", "expr": "base_thread_daemon_count{run_id=\"$run_id\"}", "legendFormat": "daemon", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Process CPU load",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 10 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "custom": { "drawStyle": "line", "fillOpacity": 15 } }, "overrides": [] },
+      "targets": [
+        { "refId": "cpu", "expr": "base_cpu_processCpuLoad{run_id=\"$run_id\"}", "legendFormat": "process CPU", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Loaded classes / non-heap",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 10 },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line" } },
+        "overrides": [ { "matcher": { "id": "byName", "options": "non-heap used" }, "properties": [ { "id": "unit", "value": "bytes" }, { "id": "custom.axisPlacement", "value": "right" } ] }, { "matcher": { "id": "byName", "options": "loaded classes" }, "properties": [ { "id": "unit", "value": "short" } ] } ] },
+      "targets": [
+        { "refId": "classes", "expr": "base_classloader_loadedClasses_count{run_id=\"$run_id\"}", "legendFormat": "loaded classes", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "refId": "nonheap", "expr": "base_memory_usedNonHeap_bytes{run_id=\"$run_id\"}", "legendFormat": "non-heap used", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Undertow — requests/s by deployment",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "req", "expr": "sum by (deployment) (rate(wildfly_undertow_request_count_total{run_id=\"$run_id\"}[1m]))", "legendFormat": "{{deployment}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "Undertow — mean processing time & errors/s",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+        "overrides": [ { "matcher": { "id": "byRegexp", "options": "errors.*" }, "properties": [ { "id": "unit", "value": "ops" }, { "id": "custom.axisPlacement", "value": "right" } ] }, { "matcher": { "id": "byRegexp", "options": "mean.*" }, "properties": [ { "id": "unit", "value": "s" } ] } ] },
+      "targets": [
+        { "refId": "mean", "expr": "sum(rate(wildfly_undertow_processing_time_total_seconds{run_id=\"$run_id\"}[1m])) / clamp_min(sum(rate(wildfly_undertow_request_count_total{run_id=\"$run_id\"}[1m])), 1e-9)", "legendFormat": "mean processing time", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "refId": "err", "expr": "sum(rate(wildfly_undertow_error_count_total{run_id=\"$run_id\"}[1m]))", "legendFormat": "errors/s", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    }
+  ]
+}
