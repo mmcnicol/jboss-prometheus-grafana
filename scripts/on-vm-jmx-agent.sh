@@ -23,12 +23,14 @@ case "${1:-}" in
         "https://repo1.maven.org/maven2/io/prometheus/jmx/jmx_prometheus_javaagent/${JMX_VERSION}/jmx_prometheus_javaagent-${JMX_VERSION}.jar"
     fi
     sudo cp observability/jmx-exporter/config.yaml "$JMX_CONF"
+    sudo chmod -R a+rX "$JMX_DIR"
     if ! grep -q -- "-javaagent:${JMX_JAR}" "$UNIT"; then
-      sudo sed -i -E "s#(JAVA_OPTS=\"[^\"]*)#\\1 ${AGENT_OPT}#" "$UNIT"
+      # Append the agent opt just before the closing quote of the JAVA_OPTS value.
+      sudo sed -i -E "s#(Environment=\"JAVA_OPTS=[^\"]*)(\")#\\1 ${AGENT_OPT}\\2#" "$UNIT"
     fi
     ;;
   off)
-    sudo sed -i -E "s# *-javaagent:${JMX_JAR//\//\\/}=[0-9]+:[^\" ]*##" "$UNIT"
+    sudo sed -i -E "s# -javaagent:[^ \"]*jmx_prometheus_javaagent\\.jar=[0-9]+:[^ \"]*##" "$UNIT"
     ;;
   *)
     echo "usage: $0 on|off" >&2; exit 2 ;;
