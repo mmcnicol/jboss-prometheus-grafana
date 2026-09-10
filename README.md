@@ -18,9 +18,22 @@ licensed binaries or workplace-specific detail are included.
 
 ## Status
 
-Technical solution **approved** (2026-09-10). Implementation starting at Phase 0
-(VM + repo skeleton). See `docs/`:
+**Phase 0 complete** (2026-09-10) — WildFly 26.1 + demo app + Selenium driver +
+Prometheus/Grafana all running on a GCP VM. Phase 1 next: real instrumentation
+behind the toggle, run labels, first dashboard.
 
-1. [`docs/01-requirements.md`](docs/01-requirements.md)
-2. [`docs/02-spikes.md`](docs/02-spikes.md)
-3. [`docs/03-technical-solution.md`](docs/03-technical-solution.md) — approved; decisions in §9
+- [`docs/01-requirements.md`](docs/01-requirements.md)
+- [`docs/02-spikes.md`](docs/02-spikes.md)
+- [`docs/03-technical-solution.md`](docs/03-technical-solution.md) — decisions in §9, phasing in §6
+- [`docs/04-runbook.md`](docs/04-runbook.md) — bring the stack up / down
+
+## Layout
+
+```
+metrics-support/metrics-api   portable timing facade + system-property toggle + no-op backend
+demo-app/portal-web           JSF 2.3 + PrimeFaces 13 WAR: login -> discharge form -> list
+load/selenium-java            primary UI scenario driver (Selenium + Java)
+load/scenarios                driver-agnostic scenario step lists
+observability/                docker-compose: Prometheus + Grafana + (run-scoped) OTel Collector
+infra/gcp/                     create / bootstrap / tear down the demo VM
+```

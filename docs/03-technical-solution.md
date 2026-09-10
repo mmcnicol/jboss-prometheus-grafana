@@ -286,7 +286,7 @@ metric is the source of truth in every case. Repo ships:
 
 | Phase | Deliverable | Spikes | Acceptance |
 |---|---|---|---|
-| **0** | Repo skeleton, `metrics-api` + no-op, demo `portal-web` with login + form + list, WildFly on VM, one UI driver running the login→form→save steps, Prometheus + Grafana up | — | app deploys; scenario runs; Grafana reachable |
+| **0 ✅ done 2026-09-10** | Repo skeleton, `metrics-api` + no-op, demo `portal-web` with login + form + list, WildFly 26.1 on the VM, Selenium/Java driver running login→form→save, Prometheus + Grafana up, run-scoped OTel Collector wired. See `docs/04-runbook.md`. | — | met: WAR deploys (HTTP 200), 45s Selenium run = 38 iterations / 0 failures, Grafana health OK externally, `/metrics` returns 404 with the toggle off, unit tests green |
 | **1** (core) | One backend live (per Spike A), server-side per-action timers keyed off JSF + poll filter, toggle working, collector run-scoped with run labels, Dashboard 1 | A, B, C | acceptance criteria 1–3 in requirements |
 | **2** | Second backend behind facade + comparison write-up; second UI driver + client-side cross-check; Dashboards 2 & 3 (overlay + trend); Jenkinsfile | D, F | acceptance criteria 4–6 |
 | **3** | `service-a`/`service-b` instrumented + hand-written k6 HTTP service scenarios ("middle" layer) | — | service percentiles in Grafana |
