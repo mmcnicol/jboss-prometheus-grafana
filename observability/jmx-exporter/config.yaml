@@ -1,0 +1,49 @@
+# jmx_exporter javaagent config — the Spike E ALTERNATIVE to the WildFly
+# MicroProfile Metrics subsystem. Use this when: not on WildFly/EAP, the
+# management port can't be reached, or you want vendor-neutral metric names.
+#
+# Enable:  ./scripts/on-vm-jmx-agent.sh on     (adds -javaagent + restarts WildFly)
+# The agent serves http://<host>:9404/metrics ; keep that port internal (NFR7).
+
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+
+# Keep the MBean traversal cheap: only these object-name domains.
+includeObjectNames:
+  - "java.lang:*"
+  - "java.nio:*"
+  - "jboss.as:subsystem=undertow,*"
+  - "jboss.threads:*"
+
+rules:
+  # Heap / non-heap usage
+  - pattern: 'java.lang<type=Memory><(HeapMemoryUsage|NonHeapMemoryUsage)>(\w+)'
+    name: jvm_memory_$1_$2_bytes
+    type: GAUGE
+  # GC
+  - pattern: 'java.lang<type=GarbageCollector, name=(.+)><>CollectionCount'
+    name: jvm_gc_collection_count
+    labels: { gc: "$1" }
+    type: COUNTER
+  - pattern: 'java.lang<type=GarbageCollector, name=(.+)><>CollectionTime'
+    name: jvm_gc_collection_time_ms
+    labels: { gc: "$1" }
+    type: COUNTER
+  # Threads
+  - pattern: 'java.lang<type=Threading><>(ThreadCount|DaemonThreadCount|PeakThreadCount)'
+    name: jvm_threads_$1
+    type: GAUGE
+  # Classes
+  - pattern: 'java.lang<type=ClassLoading><>(LoadedClassCount|TotalLoadedClassCount|UnloadedClassCount)'
+    name: jvm_classes_$1
+    type: GAUGE
+  # Process CPU
+  - pattern: 'java.lang<type=OperatingSystem><>(ProcessCpuLoad|SystemCpuLoad|SystemLoadAverage|OpenFileDescriptorCount)'
+    name: process_$1
+    type: GAUGE
+  # Undertow (needs statistics-enabled=true)
+  - pattern: 'jboss.as<subsystem=undertow, server=(.+), http-listener=(.+)><>(requestCount|bytesSent|bytesReceived|errorCount|processingTime)'
+    name: undertow_$3
+    labels: { server: "$1", listener: "$2" }
+  # Everything else that slipped through the includeObjectNames filter
+  - pattern: ".*"

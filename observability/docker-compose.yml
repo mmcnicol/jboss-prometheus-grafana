@@ -59,6 +59,8 @@ services:
       TEST_TYPE: ${TEST_TYPE:-ui}
       ENV: ${ENV:-dev}
       SCRAPE_HOST: ${SCRAPE_HOST:-localhost:8080}
+      MGMT_HOST: ${MGMT_HOST:-localhost:9990}
+      JMX_EXPORTER_HOST: ${JMX_EXPORTER_HOST:-localhost:9404}
       PROM_RW_ENDPOINT: ${PROM_RW_ENDPOINT:-http://localhost:9090/api/v1/write}
     volumes:
       - ./otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
