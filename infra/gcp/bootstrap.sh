@@ -77,14 +77,22 @@ else
 fi
 
 log "versions"
-java -version
-mvn -v | head -1
+set +e
+java -version 2>&1 | sed -n 1p
+mvn -v 2>&1 | sed -n 1p
 docker --version
-docker compose version | head -1
-k6 version
-chromium --version || chromium-browser --version || true
-chromedriver --version || true
-systemctl is-active wildfly && echo "wildfly: $(curl -fsS -o /dev/null -w '%{http_code}' http://localhost:8080/ || true) on :8080"
+docker compose version 2>&1 | sed -n 1p
+k6 version 2>&1 | sed -n 1p
+(chromium --version || chromium-browser --version) 2>&1 | sed -n 1p
+chromedriver --version 2>&1 | sed -n 1p
+
+log "wildfly readiness"
+for i in $(seq 1 30); do
+  code="$(curl -fsS -o /dev/null -w '%{http_code}' http://localhost:8080/ 2>/dev/null)"
+  [ -n "$code" ] && { echo "http://localhost:8080/ -> $code (after ${i}s)"; break; }
+  sleep 1
+done
+systemctl is-active wildfly
 
 log "done"
 echo "next: cd $REPO_DIR && docker compose -f observability/docker-compose.yml up -d"
