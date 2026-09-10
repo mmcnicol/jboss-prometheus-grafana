@@ -1,6 +1,7 @@
 package io.github.jpg.portal.metrics;
 
 import javax.faces.context.FacesContext;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -12,8 +13,10 @@ import java.util.Set;
  * <ol>
  *   <li>polling component id &rarr; {@code null} (dropped)</li>
  *   <li>explicit {@code _action} request parameter, if a driver set one</li>
- *   <li>{@code javax.faces.source} component id, mapped to a friendly name</li>
- *   <li>the view id</li>
+ *   <li>{@code javax.faces.source} — the firing component of an AJAX request</li>
+ *   <li>a command-button client id present as a POST parameter (non-AJAX
+ *       postback: {@code login}, {@code discharge.save} both submit and redirect)</li>
+ *   <li>the view id (a plain GET of a page)</li>
  * </ol>
  *
  * <p>Phase 1 keeps the maps small and hard-coded. Spike B replaces them with the
@@ -22,7 +25,15 @@ import java.util.Set;
  */
 final class ActionNameResolver {
 
-    /** {@code javax.faces.source} client-id suffixes that identify a poll/auto-refresh. */
+    /** {@code javax.faces.source} / button client-id suffixes and their action names. */
+    private static final Map<String, String> COMPONENT_ACTIONS = new LinkedHashMap<>();
+
+    static {
+        COMPONENT_ACTIONS.put("loginButton", "login");
+        COMPONENT_ACTIONS.put("saveButton", "discharge.save");
+    }
+
+    /** Client-id suffixes that identify a poll / auto-refresh request. */
     private static final Set<String> POLL_COMPONENT_IDS = Set.of("countPoll");
 
     private ActionNameResolver() {
@@ -37,7 +48,7 @@ final class ActionNameResolver {
     /** Testable core: no FacesContext. */
     static String resolve(Map<String, String> params, String viewId) {
         String source = params.get("javax.faces.source");
-        if (source != null && isPoll(source)) {
+        if (source != null && POLL_COMPONENT_IDS.contains(tail(source))) {
             return null;
         }
 
@@ -47,28 +58,24 @@ final class ActionNameResolver {
         }
 
         if (source != null && !source.isBlank()) {
-            String mapped = fromComponentId(source);
+            String mapped = COMPONENT_ACTIONS.get(tail(source));
             if (mapped != null) {
                 return mapped;
             }
         }
 
-        return fromViewId(viewId);
-    }
-
-    private static boolean isPoll(String clientId) {
-        return POLL_COMPONENT_IDS.contains(tail(clientId));
-    }
-
-    private static String fromComponentId(String clientId) {
-        switch (tail(clientId)) {
-            case "loginButton":
-                return "login";
-            case "saveButton":
-                return "discharge.save";
-            default:
-                return null;
+        // Non-AJAX postback: the clicked command button's client id is a param key.
+        boolean postback = params.containsKey("javax.faces.ViewState");
+        if (postback) {
+            for (String key : params.keySet()) {
+                String mapped = COMPONENT_ACTIONS.get(tail(key));
+                if (mapped != null) {
+                    return mapped;
+                }
+            }
         }
+
+        return fromViewId(viewId);
     }
 
     private static String fromViewId(String viewId) {
