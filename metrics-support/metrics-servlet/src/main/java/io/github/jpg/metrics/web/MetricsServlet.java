@@ -1,4 +1,4 @@
-package io.github.jpg.portal.metrics;
+package io.github.jpg.metrics.web;
 
 import io.github.jpg.metrics.Metrics;
 import io.github.jpg.metrics.MetricsScrape;
@@ -11,10 +11,10 @@ import java.io.IOException;
 import java.util.Optional;
 
 /**
- * Prometheus scrape endpoint at {@code /portal-web/metrics}.
+ * Prometheus scrape endpoint at {@code <context>/metrics}.
  *
  * <p>Served only when {@code portal.metrics.enabled=true} and a backend is
- * present: otherwise {@link Metrics#scrape()} is empty and this responds 404
+ * present; otherwise {@link Metrics#scrape()} is empty and this responds 404
  * (requirement FR1/FR3). The OpenTelemetry Collector — started only for the
  * duration of a load-test run — is what scrapes this.
  *
@@ -29,14 +29,14 @@ public class MetricsServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         Optional<MetricsScrape> scrape = Metrics.get().scrape();
-        if (scrape.isEmpty()) {
+        if (!scrape.isPresent()) {
             resp.sendError(HttpServletResponse.SC_NOT_FOUND, "metrics disabled");
             return;
         }
         MetricsScrape s = scrape.get();
+        byte[] body = s.body();
         resp.setStatus(HttpServletResponse.SC_OK);
         resp.setContentType(s.contentType());
-        byte[] body = s.body();
         resp.setContentLength(body.length);
         resp.getOutputStream().write(body);
     }

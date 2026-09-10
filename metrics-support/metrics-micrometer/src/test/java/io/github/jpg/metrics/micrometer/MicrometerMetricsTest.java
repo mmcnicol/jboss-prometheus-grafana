@@ -45,6 +45,22 @@ class MicrometerMetricsTest {
     }
 
     @Test
+    void recordsEndpointTimerWithServiceRouteMethodStatus() {
+        MicrometerMetrics m = new MicrometerMetrics();
+        m.endpoint("service-a", "/patients/{ref}", "GET").record(Duration.ofMillis(20), 200);
+        m.endpoint("service-a", "/patients", "POST").record(Duration.ofMillis(50), 500);
+
+        String s = new String(m.scrape().orElseThrow().body(), StandardCharsets.UTF_8);
+        assertTrue(s.contains("service_endpoint_seconds"), s);
+        assertTrue(s.contains("service=\"service-a\""), s);
+        assertTrue(s.contains("route=\"/patients/{ref}\""), s);
+        assertTrue(s.contains("method=\"GET\""), s);
+        assertTrue(s.contains("status=\"2xx\""), s);
+        assertTrue(s.contains("status=\"5xx\""), s);
+        assertTrue(s.contains("outcome=\"failure\""), s);
+    }
+
+    @Test
     void incrementEmitsCounter() {
         MicrometerMetrics m = new MicrometerMetrics();
         m.increment("login.attempt", "outcome", "denied");

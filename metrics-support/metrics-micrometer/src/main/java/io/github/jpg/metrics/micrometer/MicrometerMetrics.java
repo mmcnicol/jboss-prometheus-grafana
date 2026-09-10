@@ -1,6 +1,7 @@
 package io.github.jpg.metrics.micrometer;
 
 import io.github.jpg.metrics.ActionTimer;
+import io.github.jpg.metrics.EndpointTimer;
 import io.github.jpg.metrics.Metrics;
 import io.github.jpg.metrics.MetricsScrape;
 import io.micrometer.core.instrument.Counter;
@@ -25,10 +26,12 @@ import java.util.concurrent.ConcurrentMap;
 final class MicrometerMetrics implements Metrics {
 
     private static final String ACTION_METRIC = "portal.user.action";
+    private static final String ENDPOINT_METRIC = "service.endpoint";
     private static final String EVENT_METRIC = "portal.events";
 
     private final PrometheusMeterRegistry registry;
     private final ConcurrentMap<String, ActionTimer> actions = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Timer> endpoints = new ConcurrentHashMap<>();
 
     MicrometerMetrics() {
         this.registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
@@ -37,6 +40,26 @@ final class MicrometerMetrics implements Metrics {
     @Override
     public ActionTimer action(String actionName) {
         return actions.computeIfAbsent(actionName, MicrometerActionTimer::new);
+    }
+
+    @Override
+    public EndpointTimer endpoint(String service, String route, String method) {
+        return (elapsed, httpStatus) -> {
+            if (elapsed == null) {
+                return;
+            }
+            String key = service + '|' + route + '|' + method + '|' + httpStatus;
+            endpoints.computeIfAbsent(key, k -> Timer.builder(ENDPOINT_METRIC)
+                    .tag("service", service)
+                    .tag("route", route)
+                    .tag("method", method)
+                    .tag("status", EndpointTimer.statusClass(httpStatus))
+                    .tag("outcome", EndpointTimer.outcomeFor(httpStatus))
+                    .publishPercentileHistogram()
+                    .minimumExpectedValue(Duration.ofMillis(1))
+                    .maximumExpectedValue(Duration.ofSeconds(10))
+                    .register(registry)).record(elapsed);
+        };
     }
 
     @Override

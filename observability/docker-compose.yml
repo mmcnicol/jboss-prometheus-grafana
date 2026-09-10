@@ -58,8 +58,7 @@ services:
       RELEASE: ${RELEASE:-unknown}
       TEST_TYPE: ${TEST_TYPE:-ui}
       ENV: ${ENV:-dev}
-      SCRAPE_TARGET: ${SCRAPE_TARGET:-localhost:8080}
-      SCRAPE_METRICS_PATH: ${SCRAPE_METRICS_PATH:-/portal-web/metrics}
+      SCRAPE_HOST: ${SCRAPE_HOST:-localhost:8080}
       PROM_RW_ENDPOINT: ${PROM_RW_ENDPOINT:-http://localhost:9090/api/v1/write}
     volumes:
       - ./otel-collector/config.yaml:/etc/otelcol/config.yaml:ro

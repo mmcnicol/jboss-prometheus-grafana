@@ -1,6 +1,7 @@
 package io.github.jpg.metrics.prom;
 
 import io.github.jpg.metrics.ActionTimer;
+import io.github.jpg.metrics.EndpointTimer;
 import io.github.jpg.metrics.Metrics;
 import io.github.jpg.metrics.MetricsScrape;
 import io.prometheus.metrics.core.metrics.Counter;
@@ -34,6 +35,7 @@ final class PrometheusClientMetrics implements Metrics {
 
     private final PrometheusRegistry registry = new PrometheusRegistry();
     private final Histogram actionHistogram;
+    private final Histogram endpointHistogram;
     private final ConcurrentMap<String, Counter> counters = new ConcurrentHashMap<>();
 
     PrometheusClientMetrics() {
@@ -41,6 +43,13 @@ final class PrometheusClientMetrics implements Metrics {
                 .name("portal_user_action_seconds")
                 .help("Elapsed time of a user action, by action and outcome")
                 .labelNames("action", "outcome")
+                .classicOnly()
+                .classicUpperBounds(BUCKETS_SECONDS)
+                .register(registry);
+        this.endpointHistogram = Histogram.builder()
+                .name("service_endpoint_seconds")
+                .help("Elapsed time of a service endpoint call")
+                .labelNames("service", "route", "method", "status", "outcome")
                 .classicOnly()
                 .classicUpperBounds(BUCKETS_SECONDS)
                 .register(registry);
@@ -54,6 +63,19 @@ final class PrometheusClientMetrics implements Metrics {
             }
             String o = (outcome == null || outcome.isBlank()) ? "unknown" : outcome;
             actionHistogram.labelValues(actionName, o).observe(elapsed.toNanos() / 1_000_000_000.0);
+        };
+    }
+
+    @Override
+    public EndpointTimer endpoint(String service, String route, String method) {
+        return (elapsed, httpStatus) -> {
+            if (elapsed == null) {
+                return;
+            }
+            endpointHistogram.labelValues(service, route, method,
+                            EndpointTimer.statusClass(httpStatus),
+                            EndpointTimer.outcomeFor(httpStatus))
+                    .observe(elapsed.toNanos() / 1_000_000_000.0);
         };
     }
 

@@ -36,6 +36,11 @@
       <artifactId>metrics-api</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <dependency>
+      <groupId>io.github.jpg</groupId>
+      <artifactId>metrics-servlet</artifactId>
+      <version>${project.version}</version>
+    </dependency>
 
     <!-- Exactly one backend, chosen by profile (Spike A). See <profiles> below. -->
 

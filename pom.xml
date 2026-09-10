@@ -19,7 +19,11 @@
     <module>metrics-support/metrics-api</module>
     <module>metrics-support/metrics-micrometer</module>
     <module>metrics-support/metrics-prometheus</module>
+    <module>metrics-support/metrics-servlet</module>
+    <module>metrics-support/metrics-jaxrs</module>
     <module>demo-app/portal-web</module>
+    <module>demo-app/service-a</module>
+    <module>demo-app/service-b</module>
     <module>load/selenium-java</module>
   </modules>
 

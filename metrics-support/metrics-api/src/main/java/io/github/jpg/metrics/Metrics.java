@@ -33,6 +33,16 @@ public interface Metrics {
     ActionTimer action(String actionName);
 
     /**
+     * Return the timer for a service endpoint (the "middle" load-test layer),
+     * emitting {@code service_endpoint_seconds{service,route,method,status,outcome}}.
+     *
+     * @param service low-cardinality service name (e.g. {@code service-a})
+     * @param route   the matched path template (e.g. {@code /patients/{ref}})
+     * @param method  HTTP method
+     */
+    EndpointTimer endpoint(String service, String route, String method);
+
+    /**
      * Increment a named counter, optionally with {@code key, value, key, value...}
      * label pairs.
      */

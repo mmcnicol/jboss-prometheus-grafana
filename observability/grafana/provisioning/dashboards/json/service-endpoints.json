@@ -1,0 +1,151 @@
+{
+  "uid": "service-endpoints-loadtest",
+  "title": "Service Endpoints — Load Test",
+  "tags": ["jpg", "load-test"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "run_id",
+        "label": "Run",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": { "query": "label_values(service_endpoint_seconds_count, run_id)", "refId": "A" },
+        "sort": 5,
+        "refresh": 2,
+        "includeAll": false,
+        "current": {}
+      },
+      {
+        "name": "service",
+        "label": "Service",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": { "query": "label_values(service_endpoint_seconds_count{run_id=\"$run_id\"}, service)", "refId": "A" },
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "current": { "text": "All", "value": "$__all" },
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Throughput by endpoint (req/s)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (service, route, method) (rate(service_endpoint_seconds_count{run_id=\"$run_id\", service=~\"$service\"}[1m]))",
+          "legendFormat": "{{method}} {{service}}{{route}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Error ratio by endpoint",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (service, route, method) (rate(service_endpoint_seconds_count{run_id=\"$run_id\", service=~\"$service\", outcome=\"failure\"}[1m])) / clamp_min(sum by (service, route, method) (rate(service_endpoint_seconds_count{run_id=\"$run_id\", service=~\"$service\"}[1m])), 1e-9)",
+          "legendFormat": "{{method}} {{service}}{{route}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "p95 latency by endpoint (server-side)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (service, route, method, le) (rate(service_endpoint_seconds_bucket{run_id=\"$run_id\", service=~\"$service\"}[1m])))",
+          "legendFormat": "{{method}} {{service}}{{route}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "client (k6) vs server p95",
+      "description": "k6_http_req_duration is the client-observed time; service_endpoint_seconds is the server-side timer. Divergence = network + container overhead.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line" } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "server",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(service_endpoint_seconds_bucket{run_id=\"$run_id\", service=~\"$service\"}[1m])))",
+          "legendFormat": "server p95 (all endpoints)"
+        },
+        {
+          "refId": "client",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max(k6_http_req_duration_p95{run_id=\"$run_id\"}) / 1000",
+          "legendFormat": "client p95 (k6, max endpoint)"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Per-endpoint summary (whole run)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 16 },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byRegexp", "options": "p9.*" }, "properties": [ { "id": "unit", "value": "s" } ] },
+          { "matcher": { "id": "byName", "options": "error ratio" }, "properties": [ { "id": "unit", "value": "percentunit" } ] }
+        ]
+      },
+      "transformations": [
+        { "id": "joinByField", "options": { "byField": "route", "mode": "outer" } },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time 1": true, "Time 2": true, "Time 3": true, "service 2": true, "service 3": true, "method 2": true, "method 3": true, "run_id 1": true, "run_id 2": true, "run_id 3": true, "release 1": true, "release 2": true, "release 3": true },
+            "renameByName": { "Value #count": "count", "Value #p95": "p95", "Value #err": "error ratio", "service 1": "service", "method 1": "method" }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "count", "format": "table", "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (service, route, method) (service_endpoint_seconds_count{run_id=\"$run_id\", service=~\"$service\"})"
+        },
+        {
+          "refId": "p95", "format": "table", "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (service, route, method, le) (rate(service_endpoint_seconds_bucket{run_id=\"$run_id\", service=~\"$service\"}[$__range])))"
+        },
+        {
+          "refId": "err", "format": "table", "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (service, route, method) (max_over_time(run:service_endpoint:error_ratio{run_id=\"$run_id\", service=~\"$service\"}[$__range]))"
+        }
+      ]
+    }
+  ]
+}

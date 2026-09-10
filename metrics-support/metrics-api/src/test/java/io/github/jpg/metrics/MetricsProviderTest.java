@@ -30,6 +30,7 @@ class MetricsProviderTest {
         assertDoesNotThrow(() -> {
             a.record(Duration.ofMillis(5), ActionTimer.SUCCESS);
             a.record(null, ActionTimer.FAILURE);
+            m.endpoint("svc", "/x", "GET").record(Duration.ofMillis(1), 200);
             m.increment("whatever", "k", "v");
         });
     }

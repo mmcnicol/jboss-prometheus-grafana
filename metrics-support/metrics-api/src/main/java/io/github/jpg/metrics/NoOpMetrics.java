@@ -1,21 +1,19 @@
 package io.github.jpg.metrics;
 
-import java.time.Duration;
-
 /**
  * Does nothing. Used when metrics are disabled or no backend is available.
- * A single shared instance; {@link #action(String)} always returns the same
- * shared no-op timer, so instrumentation on the hot path allocates nothing.
+ * Shared instances so instrumentation on the hot path allocates nothing.
  */
 final class NoOpMetrics implements Metrics {
 
     static final NoOpMetrics INSTANCE = new NoOpMetrics();
 
-    private static final ActionTimer TIMER = new ActionTimer() {
-        @Override
-        public void record(Duration elapsed, String outcome) {
-            // no-op
-        }
+    private static final ActionTimer TIMER = (elapsed, outcome) -> {
+        // no-op
+    };
+
+    private static final EndpointTimer ENDPOINT_TIMER = (elapsed, httpStatus) -> {
+        // no-op
     };
 
     private NoOpMetrics() {
@@ -24,6 +22,11 @@ final class NoOpMetrics implements Metrics {
     @Override
     public ActionTimer action(String actionName) {
         return TIMER;
+    }
+
+    @Override
+    public EndpointTimer endpoint(String service, String route, String method) {
+        return ENDPOINT_TIMER;
     }
 
     @Override

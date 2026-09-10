@@ -37,6 +37,19 @@ class PrometheusClientMetricsTest {
     }
 
     @Test
+    void recordsEndpointHistogram() {
+        PrometheusClientMetrics m = new PrometheusClientMetrics();
+        m.endpoint("service-b", "/codes", "GET").record(Duration.ofMillis(12), 200);
+        m.endpoint("service-b", "/validate", "POST").record(Duration.ofMillis(30), 400);
+
+        String s = scrape(m);
+        assertTrue(s.contains("service_endpoint_seconds_bucket"), s);
+        assertTrue(s.contains("service=\"service-b\""), s);
+        assertTrue(s.contains("route=\"/validate\""), s);
+        assertTrue(s.contains("status=\"4xx\""), s);
+    }
+
+    @Test
     void incrementEmitsCounterTotal() {
         PrometheusClientMetrics m = new PrometheusClientMetrics();
         m.increment("login.attempt", "outcome", "denied");

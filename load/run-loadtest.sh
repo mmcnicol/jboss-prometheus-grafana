@@ -72,8 +72,15 @@ case "$DRIVER" in
     k6 run --quiet -o experimental-prometheus-rw \
       --tag run_id="$RUN_ID" --tag release="$RELEASE" --tag test_type="$TEST_TYPE" \
       load/k6/browser/scenario.js ;;
+  k6-http)
+    K6_PROMETHEUS_RW_SERVER_URL="$PROM_RW" \
+    K6_PROMETHEUS_RW_TREND_STATS="p(50),p(90),p(95),p(99),avg" \
+    BASE="${BASE_URL%/portal-web}" VUS="$VUS" DURATION="${DURATION}s" \
+    k6 run --quiet -o experimental-prometheus-rw \
+      --tag run_id="$RUN_ID" --tag release="$RELEASE" --tag test_type=service \
+      load/k6/http-services/scenario.js ;;
   *)
-    echo "unknown driver: $DRIVER (selenium | k6-browser)" >&2; exit 2 ;;
+    echo "unknown driver: $DRIVER (selenium | k6-browser | k6-http)" >&2; exit 2 ;;
 esac
 
 echo "== settle 20s (let the last scrape land) =="

@@ -13,9 +13,19 @@ receivers:
       scrape_configs:
         - job_name: portal-web
           scrape_interval: 5s
-          metrics_path: ${env:SCRAPE_METRICS_PATH}
+          metrics_path: /portal-web/metrics
           static_configs:
-            - targets: ["${env:SCRAPE_TARGET}"]
+            - targets: ["${env:SCRAPE_HOST}"]
+        - job_name: service-a
+          scrape_interval: 5s
+          metrics_path: /service-a/metrics
+          static_configs:
+            - targets: ["${env:SCRAPE_HOST}"]
+        - job_name: service-b
+          scrape_interval: 5s
+          metrics_path: /service-b/metrics
+          static_configs:
+            - targets: ["${env:SCRAPE_HOST}"]
 
 processors:
   batch:
