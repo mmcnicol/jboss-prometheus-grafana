@@ -240,6 +240,14 @@ microservices standing in for the real system.
 
 ## 9. Acceptance criteria (first increment)
 
+> **Status (2026-09-10):** 1–7 met across Phases 0–4 (see
+> `03-technical-solution.md` §6 and `docs/findings/`). Criterion 8's porting
+> notes / EAP-deltas doc is **deferred** at the engineer's request — the
+> instrumentation module is already a standalone Maven module with no demo-app
+> dependency (NFR5), and Spike E confirmed the app-server/JVM route needs no
+> custom Java at all.
+
+
 1. `portal.metrics.enabled=false` build/run: no `/metrics`, no measurable
    overhead. `=true`: user-action timers visible in Prometheus.
 2. Two scenario runs executed with different `release` labels; server-side
