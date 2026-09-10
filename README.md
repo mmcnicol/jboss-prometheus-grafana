@@ -18,12 +18,12 @@ licensed binaries or workplace-specific detail are included.
 
 ## Status
 
-**Phase 1 complete** (2026-09-10) — instrumentation behind the
-`portal.metrics.enabled` toggle (Micrometer default, Prometheus-client alt), the
-OTel Collector stamps each run with `run_id` / `release`, and the "User Actions —
-Load Test" Grafana dashboard renders per-action throughput / error rate / p95.
-Phase 2 next: second UI driver + client cross-check, baseline-vs-candidate
-overlay, release-trend panel, Jenkinsfile.
+**Phase 2 complete** (2026-09-10) — k6-browser driver alongside Selenium (with a
+client-vs-server latency cross-check), recording rules, and two more Grafana
+dashboards: **Baseline vs Candidate** (bar + delta table + overlay) and
+**Release Trend** (one point per run over time). `ci/Jenkinsfile` orchestrates a
+labelled run; GitHub Actions builds and lints. Phase 3 next: instrument the two
+microservice WARs + hand-written k6 HTTP service load ("middle" layer).
 
 - [`docs/01-requirements.md`](docs/01-requirements.md)
 - [`docs/02-spikes.md`](docs/02-spikes.md)
@@ -39,8 +39,10 @@ metrics-support/metrics-micrometer   backend: Micrometer + Prometheus registry (
 metrics-support/metrics-prometheus   backend: Prometheus Java client (alt, -Dbackend=prometheus-client)
 demo-app/portal-web                  JSF 2.3 + PrimeFaces 13 WAR: login -> discharge form -> list
 load/selenium-java                   primary UI scenario driver (Selenium + Java)
+load/k6/browser                      alternative UI driver + client-side cross-check
 load/scenarios                       driver-agnostic scenario step lists
-load/run-loadtest.sh                 one labelled run: collector up -> scenario -> collector down
-observability/                       docker-compose: Prometheus + Grafana + (run-scoped) OTel Collector
+load/run-loadtest.sh                 one labelled run: metrics on -> collector -> scenario -> restore
+observability/                       docker-compose: Prometheus (+rules) + Grafana (3 dashboards) + OTel Collector
+ci/Jenkinsfile                       parameterised labelled load-test run
 infra/gcp/                            create / bootstrap / tear down the demo VM
 ```
