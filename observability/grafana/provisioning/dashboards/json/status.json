@@ -1,0 +1,169 @@
+{
+  "uid": "status-loadtest",
+  "title": "Status — Load Test",
+  "tags": ["jpg", "load-test"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "run_id",
+        "label": "Run",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": { "query": "label_values(portal_user_action_seconds_count, run_id)", "refId": "A" },
+        "sort": 5,
+        "refresh": 2,
+        "includeAll": false,
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1, "type": "text", "gridPos": { "h": 2, "w": 24, "x": 0, "y": 0 },
+      "options": { "mode": "markdown", "content": "One tile per application metric for the selected run — green under threshold, red at/above it. Thresholds below are **placeholders**; tune them to real SLAs. Drill into a red tile on \"User Actions\", \"Service Endpoints\" or \"App Server & JVM\" for the time series behind it." }
+    },
+    {
+      "id": 2, "type": "stat", "title": "User actions — error ratio",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 2 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal", "colorMode": "background", "graphMode": "none", "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 0.05 } ] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A", "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max(run:portal_user_action:error_ratio{run_id=\"$run_id\"})"
+        }
+      ]
+    },
+    {
+      "id": 3, "type": "stat", "title": "User actions — p95 latency",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 2 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal", "colorMode": "background", "graphMode": "none", "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 2 } ] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A", "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max(run:portal_user_action_seconds:p95{run_id=\"$run_id\"})"
+        }
+      ]
+    },
+    {
+      "id": 4, "type": "stat", "title": "Service endpoints — error ratio",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 2 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal", "colorMode": "background", "graphMode": "none", "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 0.05 } ] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A", "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max(run:service_endpoint:error_ratio{run_id=\"$run_id\"})"
+        }
+      ]
+    },
+    {
+      "id": 5, "type": "stat", "title": "Service endpoints — p95 latency",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 8 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal", "colorMode": "background", "graphMode": "none", "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 2 } ] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A", "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max(run:service_endpoint_seconds:p95{run_id=\"$run_id\"})"
+        }
+      ]
+    },
+    {
+      "id": 6, "type": "stat", "title": "JVM heap used",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 8 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal", "colorMode": "background", "graphMode": "none", "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 0.9 } ] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A", "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max(base_memory_usedHeap_bytes{run_id=\"$run_id\"} / base_memory_maxHeap_bytes{run_id=\"$run_id\"})"
+        }
+      ]
+    },
+    {
+      "id": 7, "type": "stat", "title": "Process CPU load",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 8 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal", "colorMode": "background", "graphMode": "none", "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 0.9 } ] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A", "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max(base_cpu_processCpuLoad{run_id=\"$run_id\"})"
+        }
+      ]
+    }
+  ]
+}
