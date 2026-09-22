@@ -99,6 +99,16 @@
         { "refId": "mean", "expr": "sum(rate(wildfly_undertow_processing_time_total_seconds{run_id=\"$run_id\"}[1m])) / clamp_min(sum(rate(wildfly_undertow_request_count_total{run_id=\"$run_id\"}[1m])), 1e-9)", "legendFormat": "mean processing time", "datasource": { "type": "prometheus", "uid": "prometheus" } },
         { "refId": "err", "expr": "sum(rate(wildfly_undertow_error_count_total{run_id=\"$run_id\"}[1m]))", "legendFormat": "errors/s", "datasource": { "type": "prometheus", "uid": "prometheus" } }
       ]
+    },
+    {
+      "id": 9, "type": "timeseries", "title": "Undertow — active sessions by deployment",
+      "description": "Live HTTP sessions per deployment. Needs Undertow statistics-enabled=true.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "sessions", "expr": "sum by (deployment) (wildfly_undertow_active_sessions{run_id=\"$run_id\"})", "legendFormat": "{{deployment}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
     }
   ]
 }
