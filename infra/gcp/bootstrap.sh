@@ -76,6 +76,13 @@ else
   git -C "$REPO_DIR" pull --ff-only || true
 fi
 
+log "wildfly statistics (undertow, datasources, transactions)"
+for i in $(seq 1 60); do
+  curl -fsS -o /dev/null http://localhost:9990/metrics 2>/dev/null && break
+  sleep 1
+done
+"$REPO_DIR/scripts/on-vm-enable-statistics.sh"
+
 log "versions"
 set +e
 java -version 2>&1 | sed -n 1p

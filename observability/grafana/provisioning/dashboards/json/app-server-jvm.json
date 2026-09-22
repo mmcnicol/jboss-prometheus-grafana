@@ -109,6 +109,32 @@
       "targets": [
         { "refId": "sessions", "expr": "sum by (deployment) (wildfly_undertow_active_sessions{run_id=\"$run_id\"})", "legendFormat": "{{deployment}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }
       ]
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Worker threads — busy vs pool size",
+      "description": "io subsystem task threads, which run Undertow's blocking (servlet/JSF) requests. Busy reaching max means requests queue.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+        "overrides": [ { "matcher": { "id": "byRegexp", "options": "queued.*" }, "properties": [ { "id": "custom.axisPlacement", "value": "right" } ] } ] },
+      "targets": [
+        { "refId": "busy", "expr": "max by (worker) (wildfly_io_busy_task_thread_count{run_id=\"$run_id\"})", "legendFormat": "busy ({{worker}})", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "refId": "core", "expr": "max by (worker) (wildfly_io_core_pool_size{run_id=\"$run_id\"})", "legendFormat": "core ({{worker}})", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "refId": "max", "expr": "max by (worker) (wildfly_io_max_pool_size{run_id=\"$run_id\"})", "legendFormat": "max ({{worker}})", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "refId": "queue", "expr": "max by (worker) (wildfly_io_queue_size{run_id=\"$run_id\"})", "legendFormat": "queued tasks ({{worker}})", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "Datasource pools — in use vs created vs max",
+      "description": "Per connection pool. in use = busy, created = physical connections open, max = in use + available. Needs statistics-enabled=true on each datasource.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 34 },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "inuse", "expr": "max by (data_source) (wildfly_datasources_pool_in_use_count{run_id=\"$run_id\"})", "legendFormat": "in use ({{data_source}})", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "refId": "active", "expr": "max by (data_source) (wildfly_datasources_pool_active_count{run_id=\"$run_id\"})", "legendFormat": "created ({{data_source}})", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "refId": "max", "expr": "max by (data_source) (wildfly_datasources_pool_in_use_count{run_id=\"$run_id\"} + wildfly_datasources_pool_available_count{run_id=\"$run_id\"})", "legendFormat": "max ({{data_source}})", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
     }
   ]
 }
