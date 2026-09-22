@@ -150,3 +150,51 @@ max pool size to see waits appear in item 2's panel.
 
 **Keep it small.** No schema tooling and no migration framework: create one
 table at startup, or use Hibernate's `hbm2ddl` if JPA is chosen.
+
+---
+
+## 7. Session passivation and activation (Infinispan)
+
+**Why.** When there are more sessions than the in-memory limit, WildFly
+*passivates* the least-recently-used ones: it serializes them out of the
+heap to a store. When a user returns, the session is *activated*, which
+means read back and deserialized. Under load, this costs serialization time
+and disk I/O on the request path, and it grows with session size (see
+JSF view state). A high passivation rate during a run means the session
+limit is too low for the user count; activations show users paying the
+cost of getting their session back.
+
+**Check first: does it apply?** Passivation only happens for
+**distributable** web apps (`<distributable/>` in `web.xml`), whose sessions
+Infinispan manages. Without it, Undertow keeps every session in memory and
+there is nothing to passivate. None of the demo WARs is distributable today.
+Confirm whether the real app is before building this.
+
+**Prerequisites.**
+- `<distributable/>` in the WAR's `web.xml`, and all session attributes
+  `Serializable`.
+- A session limit that load can exceed: `max-active-sessions` in
+  `jboss-web.xml`, or the cache's memory `size`.
+- Infinispan statistics on the cache backing web sessions. This is the
+  `web` container's cache (the `passivation` local cache in the standalone
+  profile, `dist` in HA), for example:
+  `/subsystem=infinispan/cache-container=web/local-cache=passivation:write-attribute(name=statistics-enabled,value=true)`.
+  Add to `on-vm-enable-statistics.sh`.
+
+**Candidate metrics** (labels likely `cache_container`, cache name).
+The attribute names and the resource that holds them (the cache or a
+`component=persistence` child) vary by WildFly version, so verify both:
+- `wildfly_infinispan_passivations`: counter
+- `wildfly_infinispan_activations`: counter
+- `wildfly_infinispan_number_of_entries`: sessions currently in memory
+- optionally `wildfly_infinispan_stores` and `average_write_time` for the
+  cost side
+
+**Panel.** "Sessions — passivation / activation": passivations and
+activations per second, with in-memory entries on the right axis, next to
+the active-sessions panel.
+
+**Demo.** To show it working, mark portal-web `<distributable/>` and set a
+low `max-active-sessions` (for example 20) so that a modest k6 run exceeds
+it. Watch for `NotSerializableException` in the log; the session beans must
+be `Serializable`.
