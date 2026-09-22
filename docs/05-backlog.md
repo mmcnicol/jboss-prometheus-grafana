@@ -105,3 +105,48 @@ hides.
 
 **Panel.** "Undertow — traffic per listener": bytes sent and received per
 second, plus bytes sent per request.
+
+---
+
+## 5. Check the Undertow request panels for double-counting
+
+**Why.** `wildfly_undertow_request_count_total` is probably reported at two
+levels: per servlet (labels `deployment`, `servlet`) and per HTTP listener
+(labels `server`, `http_listener`). The existing panels sum it without
+filtering by level. If both levels are present:
+- "requests/s by deployment" gains an extra series with an empty
+  `deployment` label (the listener total);
+- "mean processing time" divides listener-only processing time by
+  servlet + listener requests, so it reads roughly half the true value.
+
+**Check.** On the VM, during a run:
+`curl -s localhost:9990/metrics | grep '^wildfly_undertow_request_count_total'`
+and note which label sets appear.
+
+**Fix, if confirmed.** Filter each query to a single level: `servlet!=""`
+for per-deployment rates, and `http_listener!=""` for the mean-time
+calculation, so it matches `processing_time` and `error_count`. Close with no
+change if only one level is present.
+
+---
+
+## 6. Give the demo app real datasource traffic
+
+**Why.** The datasource pool panel, and items 1 and 2, stay flat because
+the demo never touches a database. `DischargeStore` and `PatientDirectory`
+only sleep to simulate latency. Without real traffic, those panels cannot
+be shown working under load.
+
+**Change.** Have one service (service-a's `PatientDirectory` is the smallest)
+run a real query against WildFly's built-in `ExampleDS` (in-memory H2)
+instead of sleeping. It could be a plain JDBC `SELECT` via
+`@Resource(lookup = "java:jboss/datasources/ExampleDS")`, or a single JPA
+entity. Keep the existing simulated delay configurable so latency figures
+stay comparable with earlier runs.
+
+**Done when.** Under a k6 run, the pool panel shows `in use` > 0 for
+`ExampleDS`, and `created` rises from 0. Optionally, shrink the `ExampleDS`
+max pool size to see waits appear in item 2's panel.
+
+**Keep it small.** No schema tooling and no migration framework: create one
+table at startup, or use Hibernate's `hbm2ddl` if JPA is chosen.
