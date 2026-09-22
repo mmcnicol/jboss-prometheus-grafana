@@ -164,11 +164,17 @@ JSF view state). A high passivation rate during a run means the session
 limit is too low for the user count; activations show users paying the
 cost of getting their session back.
 
-**Check first: does it apply?** Passivation only happens for
+**Applies: confirmed (2026-09-22).** Passivation only happens for
 **distributable** web apps (`<distributable/>` in `web.xml`), whose sessions
-Infinispan manages. Without it, Undertow keeps every session in memory and
-there is nothing to passivate. None of the demo WARs is distributable today.
-Confirm whether the real app is before building this.
+Infinispan manages; without it, Undertow keeps every session in memory. The
+target app *is* distributable, so this applies. None of the demo WARs is
+distributable yet, so the demo step below is needed to show it working.
+
+**Distributable also means session size costs more.** Infinispan serializes
+the session when it passivates it. In a clustered (HA) profile it also
+serializes the session at the end of each request that changes it, to
+replicate it. So session size (see JSF view state) costs on those requests,
+not only in heap.
 
 **Prerequisites.**
 - `<distributable/>` in the WAR's `web.xml`, and all session attributes
